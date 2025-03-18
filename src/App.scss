@@ -1,10 +1,23 @@
 $primary-color: #61dafb;
+$background-color: #282c34;
+$table-border-color: #ccc;
+$table-header-bg: #5f4343;
 
-
-.App {
-  text-align: center;
+/* Global Styles */
+body, html, .App {
+  margin: 0;
+  padding: 0;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
+/* App container and background */
+.App {
+  text-align: center;
+  background-color: $background-color;
+  color: white;
+}
+
+/* Logo styling with animation */
 .App-logo {
   height: 40vmin;
   pointer-events: none;
@@ -16,39 +29,57 @@ $primary-color: #61dafb;
   }
 }
 
+/* Header container with padding for breathing room */
 .App-header {
-  background-color: #282c34;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  padding: 2rem;
 }
 
+/* Title styling */
 .expenses-title {
-  font-size: clamp(2rem, 5vw, 3rem);  
-  color: $primary-color;      
-  margin-bottom: 1rem; 
+  font-size: clamp(2rem, 5vw, 3rem);
+  color: $primary-color;
+  margin-bottom: 1rem;
 }
 
+/* Table styling */
 .expenses-table {
   width: 75%;
-  border-collapse: separate;  
-  border-spacing: 0 10px;      // 0 horizontal, 10px vertical spacing
-
+  margin: 0 auto;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+  
   th, td {
     padding: 0.75rem;
-    border: 1px solid #ccc;
+    border: 1px solid $table-border-color;
     text-align: left;
   }
-
+  
   th {
-    background-color: #5f4343;
+    background-color: $table-header-bg;
+  }
+  
+  tr {
+    background-color: rgba(255, 255, 255, 0.05);
+    transition: background-color 0.3s ease;
+  }
+  
+  tr:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .edit-col, .edit-col-header {
+    width: 60px;
+    text-align: center;
+    border: none;
   }
 }
 
+/* Floating plus button styling */
 .PlusButton {
   position: fixed;
   bottom: 20px;
@@ -67,10 +98,15 @@ $primary-color: #61dafb;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
 
+/* Link styling */
 .App-link {
   color: $primary-color;
+  text-decoration: none;
+  margin-top: 1rem;
+  font-weight: bold;
 }
 
+/* Logo spin keyframes */
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);
