@@ -1,0 +1,158 @@
+.expense-sharing {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f4f4f4;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  
+  .sharing-title {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    color: #333;
+    text-align: center;
+  }
+  
+  .sharing-section {
+    background-color: white;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  
+    h3 {
+      font-size: 1.2rem;
+      margin-bottom: 15px;
+      color: #444;
+    }
+  
+    h4 {
+      font-size: 1.1rem;
+      margin: 15px 0;
+      color: #555;
+    }
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+    
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+    
+    th {
+      background-color: #f7f7f7;
+      font-weight: 600;
+    }
+  }
+  
+  .percent-input {
+    width: 70px;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+  }
+  
+  .add-participant-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      margin-right: 15px;
+      
+      label {
+        margin-bottom: 5px;
+        font-size: 0.9rem;
+        color: #666;
+      }
+      
+      input {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+      }
+    }
+  }
+  
+  button {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: 600;
+    
+    &.add-button {
+      background-color: #4caf50;
+      color: white;
+      margin-top: auto;
+      align-self: flex-end;
+      
+      &:hover {
+        background-color: #45a049;
+      }
+    }
+    
+    &.delete-button {
+      background-color: #f44336;
+      color: white;
+      font-size: 0.8rem;
+      
+      &:hover {
+        background-color: #d32f2f;
+      }
+    }
+  }
+  
+  .positive-balance {
+    color: #4caf50;
+    font-weight: 600;
+  }
+  
+  .negative-balance {
+    color: #f44336;
+    font-weight: 600;
+  }
+  
+  .total-summary {
+    background-color: #f8f8f8;
+    padding: 10px;
+    border-radius: 3px;
+    margin-bottom: 15px;
+    
+    p {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 0;
+    }
+  }
+  
+  /* Responsive adjustments */
+  @media screen and (max-width: 600px) {
+    .add-participant-form {
+      flex-direction: column;
+      
+      .form-group {
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 10px;
+      }
+      
+      button {
+        width: 100%;
+      }
+    }
+    
+    table {
+      font-size: 0.9rem;
+    }
+  }

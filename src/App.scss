@@ -8,13 +8,13 @@ body, html, .App {
   margin: 0;
   padding: 0;
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
+} 
 
 /* App container and background */
 .App {
   text-align: center;
   background-color: $background-color;
-  color: white;
+  color: rgb(197, 179, 179);
 }
 
 /* Logo styling with animation */
@@ -113,5 +113,36 @@ body, html, .App {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+.view-toggle {
+  display: flex;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  overflow: hidden;
+  
+  button {
+    flex: 1;
+    padding: 10px 20px;
+    background-color: #f1f1f1;
+    border: none;
+    color: #333;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    
+    &:first-child {
+      border-right: 1px solid #ddd;
+    }
+    
+    &:hover {
+      background-color: #e0e0e0;
+    }
+    
+    &.active-view {
+      background-color: #282c34;
+      color: white;
+    }
   }
 }
