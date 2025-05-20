@@ -1,68 +1,136 @@
 import React, { useState, useEffect } from 'react';
-import './ExpenseSharing.scss'; // You'll need to create this file for styling
+import './ExpenseSharing.scss';
 
-const ExpenseSharing = ({ expenses }) => {
-  // State for managing participants
-  const [participants, setParticipants] = useState([
-    { id: 1, name: 'Person 1', percentShare: 50 },
-    { id: 2, name: 'Person 2', percentShare: 50 }
-  ]);
-
+const ExpenseSharing = ({ expenses, participants, setParticipants }) => {
   // State for new participant
   const [newParticipant, setNewParticipant] = useState({ name: '', percentShare: '' });
   
-  // Calculate totals and balances
-  const [summary, setSummary] = useState({
-    totalExpenses: 0,
-    balances: []
-  });
+  // State for monthly summary
+  const [monthlySummaries, setMonthlySummaries] = useState([]);
   
-  // Recalculate balances when expenses or participants change
-  useEffect(() => {
-    calculateBalances();
-  }, [expenses, participants]);
-  
-  // Calculate who owes what
-  const calculateBalances = () => {
-    // Calculate total expenses
-    const totalExpenses = expenses.reduce((sum, expense) => sum + parseFloat(expense.cost || 0), 0);
+  // Get months from expenses
+  const getMonths = () => {
+    const monthsMap = {};
     
-    // Initialize amounts paid and owed
-    const paid = {};
-    const owes = {};
-    participants.forEach(person => {
-      paid[person.id] = 0;
-      owes[person.id] = (person.percentShare / 100) * totalExpenses;
-    });
-    
-    // Calculate what each person has paid
     expenses.forEach(expense => {
-      // Find participant that matches the purchasedBy field
-      const paidByParticipant = participants.find(
-        p => p.name.toLowerCase() === (expense.purchasedBy || expense.purchased_by || '').toLowerCase()
-      );
+      const dateObj = new Date(expense.date);
+      const year = dateObj.getFullYear();
+      const month = dateObj.getMonth();
       
-      if (paidByParticipant) {
-        paid[paidByParticipant.id] = (paid[paidByParticipant.id] || 0) + parseFloat(expense.cost || 0);
+      const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+      const monthName = new Date(year, month).toLocaleString('default', { month: 'long' });
+      const displayName = `${monthName} ${year}`;
+      
+      if (!monthsMap[monthKey]) {
+        monthsMap[monthKey] = {
+          key: monthKey,
+          name: displayName,
+          expenses: []
+        };
       }
+      
+      monthsMap[monthKey].expenses.push(expense);
     });
     
-    // Calculate net balances
-    const balances = participants.map(person => {
+    return Object.values(monthsMap).sort((a, b) => b.key.localeCompare(a.key));
+  };
+  
+  // Calculate balances for all months and overall
+  useEffect(() => {
+    const months = getMonths();
+    const summaries = months.map(month => {
+      const monthlyExpenses = month.expenses;
+      const totalMonthlyExpenses = monthlyExpenses.reduce((sum, expense) => sum + parseFloat(expense.cost || 0), 0);
+      
+      const paid = {};
+      const owes = {};
+      participants.forEach(person => {
+        paid[person.id] = 0;
+        owes[person.id] = (person.percentShare / 100) * totalMonthlyExpenses;
+      });
+      
+      monthlyExpenses.forEach(expense => {
+        const paidByPersonId = expense.person_id;
+        const paidByName = expense.purchasedBy || expense.purchased_by;
+        
+        // Try to match by id first, then by name
+        let paidByParticipant = participants.find(p => p.id === paidByPersonId);
+        
+        if (!paidByParticipant && paidByName) {
+          paidByParticipant = participants.find(p => 
+            p.name.toLowerCase() === paidByName.toLowerCase()
+          );
+        }
+        
+        if (paidByParticipant) {
+          paid[paidByParticipant.id] = (paid[paidByParticipant.id] || 0) + parseFloat(expense.cost || 0);
+        }
+      });
+      
+      const balances = participants.map(person => {
+        return {
+          id: person.id,
+          name: person.name,
+          paid: paid[person.id] || 0,
+          owes: owes[person.id] || 0,
+          netBalance: (paid[person.id] || 0) - (owes[person.id] || 0)
+        };
+      });
+      
       return {
-        id: person.id,
-        name: person.name,
-        paid: paid[person.id] || 0,
-        owes: owes[person.id] || 0,
-        netBalance: (paid[person.id] || 0) - (owes[person.id] || 0)
+        month: month.name,
+        key: month.key,
+        totalExpenses: totalMonthlyExpenses,
+        balances
       };
     });
     
-    setSummary({
-      totalExpenses,
-      balances
+    // Add overall summary
+    const totalExpenses = expenses.reduce((sum, expense) => sum + parseFloat(expense.cost || 0), 0);
+    
+    const overallPaid = {};
+    const overallOwes = {};
+    participants.forEach(person => {
+      overallPaid[person.id] = 0;
+      overallOwes[person.id] = (person.percentShare / 100) * totalExpenses;
     });
-  };
+    
+    expenses.forEach(expense => {
+      const paidByPersonId = expense.person_id;
+      const paidByName = expense.purchasedBy || expense.purchased_by;
+      
+      let paidByParticipant = participants.find(p => p.id === paidByPersonId);
+      
+      if (!paidByParticipant && paidByName) {
+        paidByParticipant = participants.find(p => 
+          p.name.toLowerCase() === paidByName.toLowerCase()
+        );
+      }
+      
+      if (paidByParticipant) {
+        overallPaid[paidByParticipant.id] = (overallPaid[paidByParticipant.id] || 0) + parseFloat(expense.cost || 0);
+      }
+    });
+    
+    const overallBalances = participants.map(person => {
+      return {
+        id: person.id,
+        name: person.name,
+        paid: overallPaid[person.id] || 0,
+        owes: overallOwes[person.id] || 0,
+        netBalance: (overallPaid[person.id] || 0) - (overallOwes[person.id] || 0)
+      };
+    });
+    
+    const overallSummary = {
+      month: 'Overall',
+      key: 'overall',
+      totalExpenses,
+      balances: overallBalances
+    };
+    
+    setMonthlySummaries([overallSummary, ...summaries]);
+  }, [expenses, participants]);
   
   // Handle adding a new participant
   const handleAddParticipant = (e) => {
@@ -81,7 +149,7 @@ const ExpenseSharing = ({ expenses }) => {
     // Recalculate percentages to ensure they add up to 100%
     adjustPercentages([...participants, newPerson]);
   };
-  
+
   // Ensure percentages add up to 100%
   const adjustPercentages = (people) => {
     const total = people.reduce((sum, p) => sum + parseFloat(p.percentShare), 0);
@@ -118,23 +186,6 @@ const ExpenseSharing = ({ expenses }) => {
     
     setParticipants(participants.filter(p => p.id !== id));
   };
-
-  // Save participants to localStorage
-  useEffect(() => {
-    localStorage.setItem('participants', JSON.stringify(participants));
-  }, [participants]);
-
-  // Load participants from localStorage on mount
-  useEffect(() => {
-    const savedParticipants = localStorage.getItem('participants');
-    if (savedParticipants) {
-      try {
-        setParticipants(JSON.parse(savedParticipants));
-      } catch (e) {
-        console.error("Error parsing saved participants:", e);
-      }
-    }
-  }, []);
   
   return (
     <div className="expense-sharing">
@@ -156,7 +207,7 @@ const ExpenseSharing = ({ expenses }) => {
             {participants.map(person => (
               <tr key={person.id}>
                 <td>{person.name}</td>
-                <td>
+                <td className="percentage-cell">
                   <input
                     type="number"
                     min="0"
@@ -165,7 +216,7 @@ const ExpenseSharing = ({ expenses }) => {
                     onChange={(e) => handlePercentChange(person.id, e.target.value)}
                     onBlur={() => adjustPercentages(participants)}
                     className="percent-input"
-                  />%
+                  />
                 </td>
                 <td>
                   <button 
@@ -191,7 +242,7 @@ const ExpenseSharing = ({ expenses }) => {
               required
             />
           </div>
-          <div className="form-group">
+          <div className="form-group percentage-group">
             <label>Percentage Share</label>
             <input
               type="number"
@@ -201,46 +252,50 @@ const ExpenseSharing = ({ expenses }) => {
               value={newParticipant.percentShare}
               onChange={handleParticipantChange}
               required
-            />%
+            />
           </div>
           <button type="submit" className="add-button">Add Person</button>
         </form>
       </div>
       
-      {/* Summary & Balances */}
-      <div className="sharing-section">
-        <h3>Sharing Summary</h3>
-        
-        <div className="total-summary">
-          <p>Total Expenses: ${summary.totalExpenses.toFixed(2)}</p>
-        </div>
-        
-        <h4>Who Owes What</h4>
-        
-        <table className="balances-table">
-          <thead>
-            <tr>
-              <th>Person</th>
-              <th>Paid</th>
-              <th>Owes</th>
-              <th>Net Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summary.balances.map(balance => (
-              <tr key={balance.id}>
-                <td>{balance.name}</td>
-                <td>${balance.paid.toFixed(2)}</td>
-                <td>${balance.owes.toFixed(2)}</td>
-                <td className={balance.netBalance >= 0 ? 'positive-balance' : 'negative-balance'}>
-                  {balance.netBalance >= 0 ? 
-                    `Gets $${balance.netBalance.toFixed(2)}` : 
-                    `Owes $${Math.abs(balance.netBalance).toFixed(2)}`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Monthly Summaries & Balances */}
+      <div className="monthly-summaries">
+        {monthlySummaries.map((summary) => (
+          <div key={summary.key} className="sharing-section">
+            <h3>{summary.month} Summary</h3>
+            
+            <div className="total-summary">
+              <p>Total Expenses: ${summary.totalExpenses.toFixed(2)}</p>
+            </div>
+            
+            <h4>Who Owes What</h4>
+            
+            <table className="balances-table">
+              <thead>
+                <tr>
+                  <th>Person</th>
+                  <th>Paid</th>
+                  <th>Owes</th>
+                  <th>Net Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.balances.map(balance => (
+                  <tr key={balance.id}>
+                    <td>{balance.name}</td>
+                    <td>${balance.paid.toFixed(2)}</td>
+                    <td>${balance.owes.toFixed(2)}</td>
+                    <td className={balance.netBalance >= 0 ? 'positive-balance' : 'negative-balance'}>
+                      {balance.netBalance >= 0 ? 
+                        `Gets $${balance.netBalance.toFixed(2)}` : 
+                        `Owes $${Math.abs(balance.netBalance).toFixed(2)}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </div>
     </div>
   );

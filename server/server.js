@@ -12,28 +12,45 @@ const PORT = process.env.PORT || 5001; // Define PORT
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// GET endpoint to retrieve data
+// GET endpoint to retrieve data with person names
 app.get('/api/data', async (req, res) => {
-  const { data, error } = await supabase
-    .from('expenses')
-    .select('*');
+  try {
+    // First get all persons
+    const { data: persons } = await supabase
+      .from('persons')
+      .select('id, name');
 
-  if (error) {
-    console.error('Supabase GET error:', error);
-    return res.status(500).json({ error: error.message });
+    // Then get all expenses
+    const { data: expenses, error } = await supabase
+      .from('expenses')
+      .select('*');
+
+    if (error) {
+      console.error('Supabase GET error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    // Map person data to each expense
+    const expensesWithPerson = expenses.map(expense => ({
+      ...expense,
+      person: persons?.find(p => p.id === expense.person_id) || null
+    }));
+
+    res.json(expensesWithPerson);
+  } catch (error) {
+    console.error('Server error:', error);
+    res.status(500).json({ error: error.message });
   }
-  res.json(data);
 });
 
 // POST endpoint to add data
 app.post('/api/data', async (req, res) => {
-  const { cost, purchasedBy, date, comment } = req.body;
+  const { cost, person_id, date, comment } = req.body;
 
-  // Add .select() so that Supabase returns the inserted rows with their generated id
   const { data, error } = await supabase
     .from('expenses')
-    .insert([{ cost, purchased_by: purchasedBy, date, comment }])
-    .select();
+    .insert([{ cost, person_id, date, comment }])
+    .select('*, person:person_id(name)');  // Added person data to response
 
   if (error) {
     console.error('Supabase POST error:', error);
@@ -62,19 +79,13 @@ app.delete('/api/data/:id', async (req, res) => {
 // PATCH endpoint to update an expense
 app.patch('/api/data/:id', async (req, res) => {
   const { id } = req.params;
-  const parsedId = parseInt(id, 10); // Ensure the id is numeric
-  const { cost, purchasedBy, date, comment } = req.body;
+  const { cost, person_id, date, comment } = req.body;
 
   const { data, error } = await supabase
     .from('expenses')
-    .update({
-      cost, 
-      purchased_by: purchasedBy, // Adjust if your column is named differently
-      date,
-      comment,
-    })
-    .eq('id', parsedId)
-    .select(); // Return the updated row(s)
+    .update({ cost, person_id, date, comment })
+    .eq('id', id)
+    .select('*, person:person_id(name)');  // Added person data to response
 
   if (error) {
     console.error('Error updating expense:', error);
@@ -82,6 +93,26 @@ app.patch('/api/data/:id', async (req, res) => {
   }
   res.json(data);
 });
+
+// GET endpoint to retrieve all persons
+app.get('/api/persons', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('persons')
+      .select('id, name');
+
+    if (error) {
+      console.error('Supabase GET persons error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json(data || []);
+  } catch (error) {
+    console.error('Server error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
