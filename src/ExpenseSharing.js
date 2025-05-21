@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './ExpenseSharing.scss';
+import { formatPercentage, fixRoundingIssues } from './percentageUtils';
 
-const ExpenseSharing = ({ expenses, participants, setParticipants }) => {
-  // State for new participant
-  const [newParticipant, setNewParticipant] = useState({ name: '', percentShare: '' });
-  
+const ExpenseSharing = ({ expenses, participants, setParticipants, persons, onRefreshParticipants }) => {
   // State for monthly summary
   const [monthlySummaries, setMonthlySummaries] = useState([]);
   
@@ -50,15 +48,13 @@ const ExpenseSharing = ({ expenses, participants, setParticipants }) => {
       });
       
       monthlyExpenses.forEach(expense => {
-        const paidByPersonId = expense.person_id;
-        const paidByName = expense.purchasedBy || expense.purchased_by;
+        // First try to match by person_id directly
+        let paidByParticipant = participants.find(p => p.id === expense.person_id);
         
-        // Try to match by id first, then by name
-        let paidByParticipant = participants.find(p => p.id === paidByPersonId);
-        
-        if (!paidByParticipant && paidByName) {
+        // If no match by ID, try to match by name (backward compatibility)
+        if (!paidByParticipant && expense.purchasedBy) {
           paidByParticipant = participants.find(p => 
-            p.name.toLowerCase() === paidByName.toLowerCase()
+            p.name.toLowerCase() === expense.purchasedBy.toLowerCase()
           );
         }
         
@@ -96,14 +92,13 @@ const ExpenseSharing = ({ expenses, participants, setParticipants }) => {
     });
     
     expenses.forEach(expense => {
-      const paidByPersonId = expense.person_id;
-      const paidByName = expense.purchasedBy || expense.purchased_by;
+      // First try to match by person_id directly
+      let paidByParticipant = participants.find(p => p.id === expense.person_id);
       
-      let paidByParticipant = participants.find(p => p.id === paidByPersonId);
-      
-      if (!paidByParticipant && paidByName) {
+      // If no match by ID, try to match by name (backward compatibility)
+      if (!paidByParticipant && expense.purchasedBy) {
         paidByParticipant = participants.find(p => 
-          p.name.toLowerCase() === paidByName.toLowerCase()
+          p.name.toLowerCase() === expense.purchasedBy.toLowerCase()
         );
       }
       
@@ -132,59 +127,52 @@ const ExpenseSharing = ({ expenses, participants, setParticipants }) => {
     setMonthlySummaries([overallSummary, ...summaries]);
   }, [expenses, participants]);
   
-  // Handle adding a new participant
-  const handleAddParticipant = (e) => {
-    e.preventDefault();
-    if (!newParticipant.name || !newParticipant.percentShare) return;
+  // Update participant percentage
+  const handlePercentChange = (id, newPercent) => {
+    // Limit input to one decimal place
+    const formattedPercent = formatPercentage(newPercent);
     
-    const newPerson = {
-      id: Date.now(),
-      name: newParticipant.name,
-      percentShare: parseFloat(newParticipant.percentShare)
-    };
+    const updatedParticipants = participants.map(p => 
+      p.id === id ? { ...p, percentShare: formattedPercent } : p
+    );
+    setParticipants(updatedParticipants);
     
-    setParticipants([...participants, newPerson]);
-    setNewParticipant({ name: '', percentShare: '' });
-    
-    // Recalculate percentages to ensure they add up to 100%
-    adjustPercentages([...participants, newPerson]);
+    // After changing a percentage, adjust all percentages to ensure they sum to 100
+    adjustPercentages(updatedParticipants);
   };
-
+  
   // Ensure percentages add up to 100%
   const adjustPercentages = (people) => {
-    const total = people.reduce((sum, p) => sum + parseFloat(p.percentShare), 0);
-    if (total !== 100) {
+    const total = people.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0);
+    
+    if (Math.abs(total - 100) > 0.1) { // Only adjust if difference is significant
       // Proportionally adjust all percentages
       const adjustedPeople = people.map(p => ({
         ...p,
-        percentShare: (p.percentShare / total) * 100
+        percentShare: formatPercentage((p.percentShare / total) * 100)
       }));
+      
+      // Fix any rounding issues to ensure sum is exactly 100
+      fixRoundingIssues(adjustedPeople);
+      
       setParticipants(adjustedPeople);
     }
   };
   
-  // Update participant percentage
-  const handlePercentChange = (id, newPercent) => {
-    const updatedParticipants = participants.map(p => 
-      p.id === id ? { ...p, percentShare: parseFloat(newPercent) } : p
-    );
-    setParticipants(updatedParticipants);
-  };
-  
-  // Handle input field changes for new participant
-  const handleParticipantChange = (e) => {
-    const { name, value } = e.target;
-    setNewParticipant({ ...newParticipant, [name]: value });
-  };
-  
-  // Handle delete participant
-  const handleDeleteParticipant = (id) => {
-    if (participants.length <= 2) {
-      alert("You need at least two participants!");
-      return;
-    }
+  // Reset all percentages to equal distribution
+  const resetPercentages = () => {
+    if (!participants.length) return;
     
-    setParticipants(participants.filter(p => p.id !== id));
+    const equalShare = formatPercentage(100 / participants.length);
+    const updatedParticipants = participants.map(p => ({
+      ...p,
+      percentShare: equalShare
+    }));
+    
+    // Fix any rounding issues
+    fixRoundingIssues(updatedParticipants);
+    
+    setParticipants(updatedParticipants);
   };
   
   return (
@@ -194,13 +182,13 @@ const ExpenseSharing = ({ expenses, participants, setParticipants }) => {
       {/* Participants Section */}
       <div className="sharing-section">
         <h3>Participants & Percentages</h3>
+        <p className="info-text">These percentages determine how expenses are shared among participants.</p>
         
         <table className="participants-table">
           <thead>
             <tr>
               <th>Name</th>
               <th>Percentage Share</th>
-              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -212,50 +200,33 @@ const ExpenseSharing = ({ expenses, participants, setParticipants }) => {
                     type="number"
                     min="0"
                     max="100"
+                    step="0.01"
                     value={person.percentShare}
                     onChange={(e) => handlePercentChange(person.id, e.target.value)}
                     onBlur={() => adjustPercentages(participants)}
                     className="percent-input"
                   />
                 </td>
-                <td>
-                  <button 
-                    onClick={() => handleDeleteParticipant(person.id)}
-                    className="delete-button"
-                  >
-                    Remove
-                  </button>
-                </td>
               </tr>
             ))}
           </tbody>
         </table>
         
-        <form onSubmit={handleAddParticipant} className="add-participant-form">
-          <div className="form-group">
-            <label>Name</label>
-            <input
-              type="text"
-              name="name"
-              value={newParticipant.name}
-              onChange={handleParticipantChange}
-              required
-            />
-          </div>
-          <div className="form-group percentage-group">
-            <label>Percentage Share</label>
-            <input
-              type="number"
-              name="percentShare"
-              min="0"
-              max="100"
-              value={newParticipant.percentShare}
-              onChange={handleParticipantChange}
-              required
-            />
-          </div>
-          <button type="submit" className="add-button">Add Person</button>
-        </form>
+        <div className="actions-row">
+          <button 
+            onClick={resetPercentages} 
+            className="reset-button"
+          >
+            Reset to Equal Shares
+          </button>
+          <button 
+            onClick={onRefreshParticipants} 
+            className="refresh-button"
+          >
+            Refresh Participants
+          </button>
+        </div>
+        <p className="note">Note: Participants are synchronized with the people in your database.</p>
       </div>
       
       {/* Monthly Summaries & Balances */}
@@ -287,8 +258,8 @@ const ExpenseSharing = ({ expenses, participants, setParticipants }) => {
                     <td>${balance.owes.toFixed(2)}</td>
                     <td className={balance.netBalance >= 0 ? 'positive-balance' : 'negative-balance'}>
                       {balance.netBalance >= 0 ? 
-                        `Gets $${balance.netBalance.toFixed(2)}` : 
-                        `Owes $${Math.abs(balance.netBalance).toFixed(2)}`}
+                        `Gets ${balance.netBalance.toFixed(2)}` : 
+                        `Owes ${Math.abs(balance.netBalance).toFixed(2)}`}
                     </td>
                   </tr>
                 ))}

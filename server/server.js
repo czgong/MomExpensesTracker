@@ -15,9 +15,9 @@ app.use(express.json());
 // GET endpoint to retrieve data with person names
 app.get('/api/data', async (req, res) => {
   try {
-    // First get all persons
-    const { data: persons } = await supabase
-      .from('persons')
+    // First get all people
+    const { data: people } = await supabase
+      .from('people')
       .select('id, name');
 
     // Then get all expenses
@@ -33,7 +33,7 @@ app.get('/api/data', async (req, res) => {
     // Map person data to each expense
     const expensesWithPerson = expenses.map(expense => ({
       ...expense,
-      person: persons?.find(p => p.id === expense.person_id) || null
+      person: people?.find(p => p.id === expense.person_id) || null
     }));
 
     res.json(expensesWithPerson);
@@ -97,16 +97,43 @@ app.patch('/api/data/:id', async (req, res) => {
 // GET endpoint to retrieve all persons
 app.get('/api/persons', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('persons')
-      .select('id, name');
+    console.log('Fetching people from Supabase...');
+    let { data, error } = await supabase
+      .from('people')
+      .select('id, name')
+      .order('id', { ascending: true });
 
     if (error) {
-      console.error('Supabase GET persons error:', error);
+      console.error('Supabase GET people error:', error);
       return res.status(500).json({ error: error.message });
     }
 
-    res.json(data || []);
+    // If no people exist, insert initial records
+    if (!data || data.length === 0) {
+      console.log('No people found. Creating initial records...');
+      const initialPeople = [
+        { name: 'Person 1' },
+        { name: 'Person 2' },
+        { name: 'Person 3' },
+        { name: 'Person 4' },
+        { name: 'Person 5' }
+      ];
+
+      const { data: insertedData, error: insertError } = await supabase
+        .from('people')
+        .insert(initialPeople)
+        .select();
+
+      if (insertError) {
+        console.error('Error creating initial people:', insertError);
+        return res.status(500).json({ error: insertError.message });
+      }
+
+      data = insertedData;
+    }
+
+    console.log('People data:', data);
+    res.json(data);
   } catch (error) {
     console.error('Server error:', error);
     res.status(500).json({ error: error.message });

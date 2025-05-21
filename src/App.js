@@ -1,78 +1,193 @@
 import './App.scss';
 import React, { useEffect, useState } from 'react';
-import { FaPlus } from 'react-icons/fa';
-import ExpenseSharing from './ExpenseSharing';
+import { FaPlus, FaCheck, FaTimes, FaUndo } from 'react-icons/fa';
 
 function App() {
   const [expenses, setExpenses] = useState([]);
-  const [showSharing, setShowSharing] = useState(false);
+  // Remove showSharing state since we're not using the tab anymore
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newExpense, setNewExpense] = useState({
     cost: 0,
-    purchasedBy: "New User",
+    person_id: null,
     date: new Date().toISOString().split('T')[0],
     comment: "New expense",
   });
   const [activeMonthTab, setActiveMonthTab] = useState(null);
-  const [personsMap, setPersonsMap] = useState({});
   
-  // New state for participants (moved from ExpenseSharing)
-  const [participants, setParticipants] = useState([
-    { id: 1, name: 'Person 1', percentShare: 50 },
-    { id: 2, name: 'Person 2', percentShare: 50 }
-  ]);
+  // Database people from Supabase
+  const [persons, setPersons] = useState([]);
   
-  // State for monthly summary (moved from ExpenseSharing)
+  // Participants for expense sharing
+  const [participants, setParticipants] = useState([]);
+  
+  // State for monthly summary
   const [monthlySummary, setMonthlySummary] = useState(null);
+  
+  // Add a state to track which participants are in edit mode
+  const [editingParticipants, setEditingParticipants] = useState({});
+  
+  // State to track if percentages need validation
+  const [needsValidation, setNeedsValidation] = useState(false);
 
-  // Update fetchExpenses to directly use person.name from the server response
-  const fetchExpenses = () => {
-    fetch('/api/data')
-      .then((response) => response.json())
-      .then((jsonData) => {
-        const expensesData = jsonData || [];
-        setExpenses(expensesData);
-
-        // Extract persons directly from the server response
-        const persons = {};
-        expensesData.forEach(expense => {
-          if (expense.purchasedBy && !persons[expense.purchasedBy]) {
-            persons[expense.purchasedBy] = expense.purchasedBy;
-          }
-        });
-        setPersonsMap(persons);
-
-        // Set default active tab to most recent month if we have expenses
-        if (expensesData.length > 0) {
-          const months = getMonthTabs(expensesData);
-          if (months.length > 0) {
-            setActiveMonthTab(months[0].key);
-          }
-        }
-      })
-      .catch((error) => {
-        console.error('Error fetching expenses:', error);
-        setExpenses([]);
-      });
+  // Function to format a percentage to one decimal place
+  const formatPercentage = (value) => {
+    return parseFloat(parseFloat(value).toFixed(1));
   };
 
-  useEffect(() => {
-    fetchExpenses();
+  // Function to fix rounding issues to ensure percentages sum to exactly 100
+  const fixRoundingIssues = (people) => {
+    const total = people.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0);
+    const diff = 100 - total;
     
-    // Load participants from localStorage on mount
-    const savedParticipants = localStorage.getItem('participants');
-    if (savedParticipants) {
+    if (Math.abs(diff) > 0.01 && people.length > 0) {
+      // Add or subtract the tiny difference from the person with the largest share
+      const personWithLargestShare = [...people].sort((a, b) => 
+        parseFloat(b.percentShare) - parseFloat(a.percentShare)
+      )[0];
+      
+      const index = people.findIndex(p => p.id === personWithLargestShare.id);
+      if (index >= 0) {
+        people[index].percentShare = formatPercentage(parseFloat(people[index].percentShare) + diff);
+      }
+    }
+  };
+
+  // Fetch persons from the server
+  const fetchPersons = async () => {
+    try {
+      console.log('Fetching persons...');
+      const response = await fetch('/api/persons');
+      const data = await response.json();
+      console.log('Persons response:', data);
+      
+      // If server response indicates error, handle it appropriately
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch persons');
+      }
+
+      // Set persons state with the data
+      console.log('Setting persons state:', data);
+      setPersons(data);
+      
+      // Sync participants with persons
+      syncParticipantsWithPersons(data);
+      
+      // Set default person_id for newExpense if not set and persons exist
+      if (newExpense.person_id === null && data.length > 0) {
+        setNewExpense(prev => ({
+          ...prev,
+          person_id: data[0].id
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching persons:', error);
+      alert('Failed to load persons data. Please try again later or contact support.');
+    }
+  };
+  
+  // Synchronize participants with persons from the database
+  const syncParticipantsWithPersons = (personsData) => {
+    if (!personsData || personsData.length === 0) return;
+    
+    // Get saved participants shares from localStorage if they exist
+    const savedParticipantsJSON = localStorage.getItem('participants');
+    let savedSharesMap = {};
+    
+    if (savedParticipantsJSON) {
       try {
-        setParticipants(JSON.parse(savedParticipants));
+        const savedParticipants = JSON.parse(savedParticipantsJSON);
+        // Create a map of person ID to their saved percentage share
+        savedSharesMap = savedParticipants.reduce((map, participant) => {
+          map[participant.id] = participant.percentShare;
+          return map;
+        }, {});
       } catch (e) {
         console.error("Error parsing saved participants:", e);
       }
     }
+    
+    // Create new participants array from persons with shares
+    const newParticipants = personsData.map(person => {
+      // Use saved percentage if available, otherwise divide evenly
+      const percentShare = savedSharesMap[person.id] || 
+                          (100 / personsData.length);
+      
+      return {
+        id: person.id,
+        name: person.name,
+        percentShare: formatPercentage(percentShare)
+      };
+    });
+    
+    // Ensure percentages add up to 100%
+    const total = newParticipants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0);
+    if (Math.abs(total - 100) > 0.1) { // Allow a small tolerance
+      // Proportionally adjust all percentages
+      newParticipants.forEach(p => {
+        p.percentShare = formatPercentage((p.percentShare / total) * 100);
+      });
+      
+      // Fix any rounding issues to ensure sum is exactly 100
+      fixRoundingIssues(newParticipants);
+    }
+    
+    console.log('Synchronized participants:', newParticipants);
+    setParticipants(newParticipants);
+    
+    // Save to localStorage
+    localStorage.setItem('participants', JSON.stringify(newParticipants));
+    
+    // Clear any editing states
+    setEditingParticipants({});
+  };
+
+  // Update fetchExpenses to handle the new data structure
+  const fetchExpenses = async () => {
+    try {
+      const response = await fetch('/api/data');
+      if (!response.ok) {
+        throw new Error('Failed to fetch expenses');
+      }
+      
+      const expensesData = await response.json();
+      
+      // Process data to match our frontend structure
+      const processedExpenses = expensesData.map(expense => ({
+        id: expense.id,
+        cost: expense.cost,
+        person_id: expense.person_id,
+        purchasedBy: expense.person?.name || 'Unknown', // Add purchasedBy for backward compatibility
+        date: expense.date,
+        comment: expense.comment
+      }));
+      
+      setExpenses(processedExpenses);
+
+      // Set default active tab to most recent month if we have expenses
+      if (processedExpenses.length > 0) {
+        const months = getMonthTabs(processedExpenses);
+        if (months.length > 0) {
+          setActiveMonthTab(months[0].key);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching expenses:', error);
+      setExpenses([]);
+    }
+  };
+
+  useEffect(() => {
+    // Fetch persons first, then expenses
+    fetchPersons()
+      .then(() => fetchExpenses())
+      .catch(error => console.error('Error in initial data loading:', error));
   }, []);
   
   // Save participants to localStorage when they change
   useEffect(() => {
-    localStorage.setItem('participants', JSON.stringify(participants));
+    if (participants.length > 0) {
+      localStorage.setItem('participants', JSON.stringify(participants));
+    }
   }, [participants]);
 
   // Function to organize expenses by month
@@ -113,9 +228,15 @@ function App() {
   };
 
   const addExpense = () => {
+    // Make sure we have at least one person
+    if (persons.length === 0) {
+      alert("No persons available. Please add persons first.");
+      return;
+    }
+
     const newExpenseData = {
       cost: 0,
-      purchasedBy: "New User",
+      person_id: persons[0].id, // Default to first person
       date: new Date().toISOString().split('T')[0],
       comment: "New expense",
       isEditing: true,
@@ -128,25 +249,24 @@ function App() {
     })
       .then((response) => response.json())
       .then((result) => {
+        // Handle the response which now includes person data
         const newExpenses = Array.isArray(result) ? result : [result];
-        const newExpensesWithEdit = newExpenses.map(exp => ({
-          ...exp,
+        
+        const newExpensesProcessed = newExpenses.map(exp => ({
+          id: exp.id,
+          cost: exp.cost,
+          person_id: exp.person_id,
+          purchasedBy: exp.person?.name || 'Unknown',
+          date: exp.date,
+          comment: exp.comment,
           isEditing: true
         }));
-        setExpenses(prev => [...prev, ...newExpensesWithEdit]);
         
-        // Update persons map
-        const persons = { ...personsMap };
-        newExpensesWithEdit.forEach(expense => {
-          if (expense.purchasedBy && !persons[expense.purchasedBy]) {
-            persons[expense.purchasedBy] = expense.purchasedBy;
-          }
-        });
-        setPersonsMap(persons);
+        setExpenses(prev => [...prev, ...newExpensesProcessed]);
 
         // Set active tab to the month of the new expense
-        if (newExpensesWithEdit.length > 0) {
-          const dateObj = new Date(newExpensesWithEdit[0].date);
+        if (newExpensesProcessed.length > 0) {
+          const dateObj = new Date(newExpensesProcessed[0].date);
           const year = dateObj.getFullYear();
           const month = dateObj.getMonth();
           const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
@@ -157,42 +277,69 @@ function App() {
   };
 
   const handleAddExpense = () => {
+    // Validate that we have a person_id before submitting
+    if (!newExpense.person_id) {
+      alert("Please select a person for this expense.");
+      return;
+    }
+    
+    console.log("Adding expense with data:", newExpense);
+    
     fetch('/api/data', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newExpense)
     })
-      .then((response) => response.json())
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+      })
       .then((result) => {
+        console.log("Server response:", result);
         const newExpenses = Array.isArray(result) ? result : [result];
-        setExpenses(prev => [...prev, ...newExpenses]);
+        
+        const newExpensesProcessed = newExpenses.map(exp => ({
+          id: exp.id,
+          cost: exp.cost,
+          person_id: exp.person_id,
+          purchasedBy: exp.person?.name || 'Unknown',
+          date: exp.date,
+          comment: exp.comment
+        }));
+        
+        setExpenses(prev => [...prev, ...newExpensesProcessed]);
         setShowAddDialog(false);
 
-        // Update persons map
-        const persons = { ...personsMap };
-        newExpenses.forEach(expense => {
-          if (expense.purchasedBy && !persons[expense.purchasedBy]) {
-            persons[expense.purchasedBy] = expense.purchasedBy;
-          }
-        });
-        setPersonsMap(persons);
-
         // Set active tab to the month of the new expense
-        if (newExpenses.length > 0) {
-          const dateObj = new Date(newExpenses[0].date);
+        if (newExpensesProcessed.length > 0) {
+          const dateObj = new Date(newExpensesProcessed[0].date);
           const year = dateObj.getFullYear();
           const month = dateObj.getMonth();
           const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
           setActiveMonthTab(monthKey);
         }
       })
-      .catch((error) => console.error('Error adding expense:', error));
+      .catch((error) => {
+        console.error('Error adding expense:', error);
+        alert(`Failed to add expense: ${error.message}`);
+      });
   };
 
   const handleEditChange = (index, field, value) => {
     setExpenses(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
+      
+      // If changing the person_id, also update the purchasedBy field for compatibility
+      if (field === 'person_id') {
+        const selectedPerson = persons.find(p => p.id === parseInt(value, 10));
+        if (selectedPerson) {
+          updated[index].purchasedBy = selectedPerson.name;
+        }
+      }
+      
       return updated;
     });
   };
@@ -217,15 +364,19 @@ function App() {
       console.error("Expense does not have an id. Cannot update:", expenseToUpdate);
       return;
     }
+    
+    // Prepare data for API call
+    const updateData = {
+      cost: expenseToUpdate.cost,
+      person_id: expenseToUpdate.person_id,
+      date: expenseToUpdate.date,
+      comment: expenseToUpdate.comment,
+    };
+    
     fetch(`/api/data/${expenseToUpdate.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        cost: expenseToUpdate.cost,
-        purchasedBy: expenseToUpdate.purchasedBy,
-        date: expenseToUpdate.date,
-        comment: expenseToUpdate.comment,
-      })
+      body: JSON.stringify(updateData)
     })
       .then(response => response.json())
       .then(result => {
@@ -235,6 +386,9 @@ function App() {
             updated[index].isEditing = false;
             return updated;
           });
+          
+          // Refresh data to ensure we have the most up-to-date info
+          fetchExpenses();
         } else {
           console.error("Error updating expense:", result.error);
         }
@@ -264,7 +418,7 @@ function App() {
       .catch(error => console.error('Error deleting expense:', error));
   };
   
-  // New function to calculate balances for the active month (moved from ExpenseSharing)
+  // Calculate balances for the active month
   const calculateMonthlyBalances = (monthExpenses) => {
     if (!monthExpenses || monthExpenses.length === 0) return null;
     
@@ -278,16 +432,18 @@ function App() {
     });
     
     monthExpenses.forEach(expense => {
-      const paidByName = expense.purchasedBy || expense.purchased_by;
+      // First try to match by person_id directly
+      let paidByParticipant = participants.find(p => p.id === expense.person_id);
       
-      if (paidByName) {
-        const paidByParticipant = participants.find(p => 
-          p.name.toLowerCase() === paidByName.toLowerCase()
+      // If no match by ID, try to match by name (backward compatibility)
+      if (!paidByParticipant && expense.purchasedBy) {
+        paidByParticipant = participants.find(p => 
+          p.name.toLowerCase() === expense.purchasedBy.toLowerCase()
         );
-        
-        if (paidByParticipant) {
-          paid[paidByParticipant.id] = (paid[paidByParticipant.id] || 0) + parseFloat(expense.cost || 0);
-        }
+      }
+      
+      if (paidByParticipant) {
+        paid[paidByParticipant.id] = (paid[paidByParticipant.id] || 0) + parseFloat(expense.cost || 0);
       }
     });
     
@@ -348,339 +504,384 @@ function App() {
     }
   };
   
-  // Functions for participant management (moved from ExpenseSharing)
-  const handleAddParticipant = (newParticipant) => {
-    if (!newParticipant.name || !newParticipant.percentShare) return;
+  // Toggle edit mode for all participants
+  const toggleAllPercentEdit = (editing) => {
+    const newEditState = participants.reduce((map, p) => ({ 
+      ...map, 
+      [p.id]: editing 
+    }), {});
     
-    const newPerson = {
-      id: Date.now(),
-      name: newParticipant.name,
-      percentShare: parseFloat(newParticipant.percentShare)
-    };
+    setEditingParticipants(newEditState);
     
-    const updatedParticipants = [...participants, newPerson];
-    setParticipants(updatedParticipants);
-    
-    // Recalculate percentages to ensure they add up to 100%
-    adjustPercentages(updatedParticipants);
+    // Reset validation flag when entering edit mode
+    if (editing) {
+      setNeedsValidation(false);
+    }
   };
+  // Compatibility function for any remaining references to togglePercentEdit
+const togglePercentEdit = (id) => {
+  console.warn("togglePercentEdit is deprecated. Use toggleAllPercentEdit instead.");
+  toggleAllPercentEdit(true);
+};
 
-  // Ensure percentages add up to 100%
-  const adjustPercentages = (people) => {
-    const total = people.reduce((sum, p) => sum + parseFloat(p.percentShare), 0);
-    if (total !== 100) {
-      // Proportionally adjust all percentages
-      const adjustedPeople = people.map(p => ({
-        ...p,
-        percentShare: (p.percentShare / total) * 100
-      }));
-      setParticipants(adjustedPeople);
-    }
-  };
-  
-  // Update participant percentage
+  // Handle percentage change in edit mode
   const handlePercentChange = (id, newPercent) => {
-    const updatedParticipants = participants.map(p => 
-      p.id === id ? { ...p, percentShare: parseFloat(newPercent) } : p
-    );
-    setParticipants(updatedParticipants);
+    // Limit input to one decimal place
+    const formattedPercent = formatPercentage(newPercent);
+    
+    setParticipants(prev => prev.map(p => 
+      p.id === id ? { ...p, percentShare: formattedPercent } : p
+    ));
+    
+    // Mark that we need validation when saving
+    setNeedsValidation(true);
   };
   
-  // Handle delete participant
-  const handleDeleteParticipant = (id) => {
-    if (participants.length <= 2) {
-      alert("You need at least two participants!");
-      return;
+  // Save edited percentages and validate
+  const savePercentages = () => {
+    // Create a copy of the current participants
+    const updatedParticipants = [...participants];
+    
+    // Calculate total percentage
+    const total = updatedParticipants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0);
+    
+    // Check if percentages sum to 100 (within a small tolerance)
+    if (Math.abs(total - 100) > 0.1) {
+      const proceed = window.confirm(
+        `The total percentage (${total.toFixed(1)}%) does not add up to 100%. ` +
+        `Would you like to adjust the values proportionally to sum to 100%?`
+      );
+      
+      if (proceed) {
+        // Proportionally adjust percentages
+        updatedParticipants.forEach(p => {
+          p.percentShare = formatPercentage((p.percentShare / total) * 100);
+        });
+        
+        // Fix any rounding issues
+        fixRoundingIssues(updatedParticipants);
+      } else {
+        // User chose not to adjust, keep editing
+        return;
+      }
     }
     
-    setParticipants(participants.filter(p => p.id !== id));
+    // Update participants with validated percentages
+    setParticipants(updatedParticipants);
+    
+    // Exit edit mode
+    toggleAllPercentEdit(false);
+    
+    // Clear validation flag
+    setNeedsValidation(false);
+    
+    // Save to localStorage
+    localStorage.setItem('participants', JSON.stringify(updatedParticipants));
   };
+  
+  // Cancel editing and revert to previous values
+  const cancelPercentEdit = () => {
+    // Revert to saved values by re-loading from localStorage
+    const savedParticipantsJSON = localStorage.getItem('participants');
+    if (savedParticipantsJSON) {
+      try {
+        const savedParticipants = JSON.parse(savedParticipantsJSON);
+        setParticipants(savedParticipants);
+      } catch (e) {
+        console.error("Error parsing saved participants:", e);
+      }
+    }
+    
+    // Exit edit mode
+    toggleAllPercentEdit(false);
+    
+    // Clear validation flag
+    setNeedsValidation(false);
+  };
+  
+  // Reset all percentages to equal distribution
+  const resetPercentages = () => {
+    if (!participants.length) return;
+    
+    const equalShare = formatPercentage(100 / participants.length);
+    const updatedParticipants = participants.map(p => ({
+      ...p,
+      percentShare: equalShare
+    }));
+    
+    // Fix any rounding issues
+    fixRoundingIssues(updatedParticipants);
+    
+    setParticipants(updatedParticipants);
+    
+    // Save to localStorage
+    localStorage.setItem('participants', JSON.stringify(updatedParticipants));
+  };
+  
+  // Check if any participant is in edit mode
+  const isAnyParticipantEditing = Object.values(editingParticipants).some(Boolean);
 
   return (
     <div className="App">
       <header className="App-header">
         <h1 className="expenses-title">Mother's Expenses</h1>
-        
-        {/* Toggle button for expense sharing view */}
-        <div className="view-toggle">
-          <button 
-            className={!showSharing ? "active-view" : ""} 
-            onClick={() => setShowSharing(false)}
-          >
-            Expenses
-          </button>
-          <button 
-            className={showSharing ? "active-view" : ""} 
-            onClick={() => setShowSharing(true)}
-          >
-            Sharing Calculator
-          </button>
-        </div>
-        
-        {/* Expense List View */}
-        {!showSharing && (
-          <>
-            {/* Month tabs navigation - Dropdown on left, then months ordered with most recent on right */}
-            {monthTabs.length > 0 && (
-              <div className="month-tabs">
-                {/* Dropdown for older months on the left */}
-                {monthTabs.length > 3 && (
-                  <div className="month-dropdown">
-                    <select 
-                      value={activeMonthTab}
-                      onChange={handleMonthDropdownChange}
-                      className={monthTabs.slice(3).some(m => m.key === activeMonthTab) ? "active-month-dropdown" : ""}
-                    >
-                      <option value="" disabled>Older Months</option>
-                      {monthTabs.slice(3).map(month => (
-                        <option key={month.key} value={month.key}>
-                          {month.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                
-                {/* Show buttons for the 3 most recent months in reverse order */}
-                {monthTabs.slice(0, 3).reverse().map(month => (
-                  <button
-                    key={month.key}
-                    className={activeMonthTab === month.key ? "active-month" : ""}
-                    onClick={() => setActiveMonthTab(month.key)}
-                  >
-                    {month.name}
-                  </button>
-                ))}
+            
+        {/* Month tabs navigation - Dropdown on left, then months ordered with most recent on right */}
+        {monthTabs.length > 0 && (
+          <div className="month-tabs">
+            {/* Dropdown for older months on the left */}
+            {monthTabs.length > 3 && (
+              <div className="month-dropdown">
+                <select 
+                  value={activeMonthTab}
+                  onChange={handleMonthDropdownChange}
+                  className={monthTabs.slice(3).some(m => m.key === activeMonthTab) ? "active-month-dropdown" : ""}
+                >
+                  <option value="" disabled>Older Months</option>
+                  {monthTabs.slice(3).map(month => (
+                    <option key={month.key} value={month.key}>
+                      {month.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
             
-            <table className="expenses-table">
+            {/* Show buttons for the 3 most recent months in reverse order */}
+            {monthTabs.slice(0, 3).reverse().map(month => (
+              <button
+                key={month.key}
+                className={activeMonthTab === month.key ? "active-month" : ""}
+                onClick={() => setActiveMonthTab(month.key)}
+              >
+                {month.name}
+              </button>
+            ))}
+          </div>
+        )}
+        
+        <table className="expenses-table">
+          <thead>
+            <tr>
+              <th>Cost</th>
+              <th>Purchased By</th>
+              <th>Date</th>
+              <th>Comment</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {activeMonthExpenses.length === 0 ? (
+              <tr>
+                <td colSpan="5">No expenses available for this month.</td>
+              </tr>
+            ) : (
+              activeMonthExpenses.map((expense) => {
+                // Find the index in the original expenses array
+                const index = expenses.findIndex(e => e.id === expense.id);
+                
+                return (
+                  <tr key={expense.id || index}>
+                    <td>
+                      {expense.isEditing ? (
+                        <input
+                          type="number"
+                          value={expense.cost}
+                          onChange={(e) => handleEditChange(index, 'cost', e.target.value)}
+                        />
+                      ) : (
+                        expense.cost
+                      )}
+                    </td>
+                    <td>
+                      {expense.isEditing ? (
+                        <select
+                          value={expense.person_id}
+                          onChange={(e) => handleEditChange(index, 'person_id', e.target.value)}
+                        >
+                          {persons.map((person) => (
+                            <option key={person.id} value={person.id}>
+                              {person.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        expense.purchasedBy
+                      )}
+                    </td>
+                    <td>
+                      {expense.isEditing ? (
+                        <input
+                          type="date"
+                          value={expense.date}
+                          onChange={(e) => handleEditChange(index, 'date', e.target.value)}
+                        />
+                      ) : (
+                        expense.date
+                      )}
+                    </td>
+                    <td>
+                      {expense.isEditing ? (
+                        <input
+                          type="text"
+                          value={expense.comment}
+                          onChange={(e) => handleEditChange(index, 'comment', e.target.value)}
+                        />
+                      ) : (
+                        expense.comment
+                      )}
+                    </td>
+                    <td className="edit-actions">
+                      {expense.isEditing ? (
+                        <>
+                          <button onClick={() => saveExpense(index)}>Save</button>
+                          <button onClick={() => toggleEdit(index, false)} className="cancel-button">Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => toggleEdit(index, true)}>Edit</button>
+                          <button onClick={() => deleteExpense(index)}>Delete</button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+        
+        {/* Display both monthly and total costs */}
+        <div className="costs-summary">
+          <div className="month-cost">Current Month Total: ${monthTotalCost}</div>
+          <div className="total-cost">Overall Total: ${totalCost}</div>
+        </div>
+        
+        {/* Monthly Balance Breakdown Section */}
+        {monthlySummary && monthlySummary.balances && (
+          <div className="sharing-section monthly-balance">
+            <h3>{monthlySummary.month} Balance Breakdown</h3>
+            
+            <div className="total-summary">
+              <p>Total Expenses: ${monthlySummary.totalExpenses.toFixed(2)}</p>
+            </div>
+            
+            <h4>Who Owes What</h4>
+            
+            <table className="balances-table">
               <thead>
                 <tr>
-                  <th>Cost</th>
-                  <th>Purchased By</th>
-                  <th>Date</th>
-                  <th>Comment</th>
-                  <th></th>
+                  <th>Person</th>
+                  <th>Paid</th>
+                  <th>Owes</th>
+                  <th>Net Balance</th>
                 </tr>
               </thead>
               <tbody>
-                {activeMonthExpenses.length === 0 ? (
-                  <tr>
-                    <td colSpan="5">No expenses available for this month.</td>
+                {monthlySummary.balances.map(balance => (
+                  <tr key={balance.id}>
+                    <td>{balance.name}</td>
+                    <td>${balance.paid.toFixed(2)}</td>
+                    <td>${balance.owes.toFixed(2)}</td>
+                    <td className={balance.netBalance >= 0 ? 'positive-balance' : 'negative-balance'}>
+                      {balance.netBalance >= 0 ? 
+                        `Gets $${balance.netBalance.toFixed(2)}` : 
+                        `Owes $${Math.abs(balance.netBalance).toFixed(2)}`}
+                    </td>
                   </tr>
-                ) : (
-                  activeMonthExpenses.map((expense) => {
-                    // Find the index in the original expenses array
-                    const index = expenses.findIndex(e => e.id === expense.id);
-                    
-                    return (
-                      <tr key={expense.id || index}>
-                        <td>
-                          {expense.isEditing ? (
-                            <input
-                              type="text"
-                              value={expense.cost}
-                              onChange={(e) => handleEditChange(index, 'cost', e.target.value)}
-                            />
-                          ) : (
-                            expense.cost
-                          )}
-                        </td>
-                        <td>
-                          {expense.isEditing ? (
-                            <select
-                              value={expense.purchasedBy}
-                              onChange={(e) => handleEditChange(index, 'purchasedBy', e.target.value)}
-                            >
-                              {Object.values(personsMap).map((personName) => (
-                                <option key={personName} value={personName}>
-                                  {personName}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            expense.purchasedBy
-                          )}
-                        </td>
-                        <td>
-                          {expense.isEditing ? (
-                            <input
-                              type="date"
-                              value={expense.date}
-                              onChange={(e) => handleEditChange(index, 'date', e.target.value)}
-                            />
-                          ) : (
-                            expense.date
-                          )}
-                        </td>
-                        <td>
-                          {expense.isEditing ? (
-                            <input
-                              type="text"
-                              value={expense.comment}
-                              onChange={(e) => handleEditChange(index, 'comment', e.target.value)}
-                            />
-                          ) : (
-                            expense.comment
-                          )}
-                        </td>
-                        <td className="edit-actions">
-                          {expense.isEditing ? (
-                            <>
-                              <button onClick={() => saveExpense(index)}>Save</button>
-                              <button onClick={() => toggleEdit(index, false)} className="cancel-button">Cancel</button>
-                            </>
-                          ) : (
-                            <>
-                              <button onClick={() => toggleEdit(index, true)}>Edit</button>
-                              <button onClick={() => deleteExpense(index)}>Delete</button>
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                ))}
               </tbody>
             </table>
-            
-            {/* Display both monthly and total costs */}
-            <div className="costs-summary">
-              <div className="month-cost">Current Month Total: ${monthTotalCost}</div>
-              <div className="total-cost">Overall Total: ${totalCost}</div>
-            </div>
-            
-            {/* Monthly Balance Breakdown Section (New!) */}
-            {monthlySummary && monthlySummary.balances && (
-              <div className="sharing-section monthly-balance">
-                <h3>{monthlySummary.month} Balance Breakdown</h3>
-                
-                <div className="total-summary">
-                  <p>Total Expenses: ${monthlySummary.totalExpenses.toFixed(2)}</p>
-                </div>
-                
-                <h4>Who Owes What</h4>
-                
-                <table className="balances-table">
-                  <thead>
-                    <tr>
-                      <th>Person</th>
-                      <th>Paid</th>
-                      <th>Owes</th>
-                      <th>Net Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlySummary.balances.map(balance => (
-                      <tr key={balance.id}>
-                        <td>{balance.name}</td>
-                        <td>${balance.paid.toFixed(2)}</td>
-                        <td>${balance.owes.toFixed(2)}</td>
-                        <td className={balance.netBalance >= 0 ? 'positive-balance' : 'negative-balance'}>
-                          {balance.netBalance >= 0 ? 
-                            `Gets $${balance.netBalance.toFixed(2)}` : 
-                            `Owes $${Math.abs(balance.netBalance).toFixed(2)}`}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            
-            {/* Participants Section */}
-            <div className="sharing-section participants-section">
-              <h3>Participants & Sharing Percentages</h3>
-              
-              <table className="participants-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Percentage Share</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {participants.map(person => (
-                    <tr key={person.id}>
-                      <td>{person.name}</td>
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={person.percentShare}
-                          onChange={(e) => handlePercentChange(person.id, e.target.value)}
-                          onBlur={() => adjustPercentages(participants)}
-                          className="percent-input"
-                        />%
-                      </td>
-                      <td>
-                        <button 
-                          onClick={() => handleDeleteParticipant(person.id)}
-                          className="delete-button"
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              
-              <form 
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const newParticipant = {
-                    name: e.target.elements.name.value,
-                    percentShare: e.target.elements.percentShare.value
-                  };
-                  handleAddParticipant(newParticipant);
-                  e.target.reset();
-                }} 
-                className="add-participant-form"
-              >
-                <div className="form-group">
-                  <label>Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                  />
-                </div>
-                <div className="form-group percentage-group">
-                  <label>Percentage Share</label>
-                  <input
-                    type="number"
-                    name="percentShare"
-                    min="0"
-                    max="100"
-                    required
-                  />
-                </div>
-                <button type="submit" className="add-button">Add Person</button>
-              </form>
-            </div>
-          </>
+          </div>
         )}
         
-        {/* Expense Sharing View */}
-        {showSharing && (
-          <ExpenseSharing 
-            expenses={expenses} 
-            participants={participants}
-            setParticipants={setParticipants}
-          />
-        )}
+        {/* Participants Section - Now with edit mode */}
+        <div className="sharing-section participants-section">
+          <div className="section-header">
+            <h3>Participants & Sharing Percentages</h3>
+            {isAnyParticipantEditing ? (
+              <div className="edit-actions">
+                <button onClick={savePercentages} className="save-button">
+                  <FaCheck /> Save
+                </button>
+                <button onClick={cancelPercentEdit} className="cancel-button">
+                  <FaTimes /> Cancel
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => toggleAllPercentEdit(true)} className="edit-all-button">
+                Edit Percentages
+              </button>
+            )}
+          </div>
+          
+          <p className="info-text">These percentages determine how expenses are shared among participants.</p>
+          
+          <table className="participants-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Percentage Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              {participants.map(person => (
+                <tr key={person.id}>
+                  <td>{person.name}</td>
+                  <td className={editingParticipants[person.id] ? "percentage-cell editing" : "percentage-cell"}>
+                    {editingParticipants[person.id] ? (
+                      <input                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={person.percentShare}
+                          onChange={(e) => handlePercentChange(person.id, e.target.value)}
+                        className="percent-input"
+                      />
+                    ) : (
+                      <span className="percent-value">{person.percentShare}%</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          
+          <div className="actions-row">
+            <button 
+              onClick={resetPercentages} 
+              className="reset-button"
+              disabled={isAnyParticipantEditing}
+            >
+              <FaUndo /> Reset to Equal Shares
+            </button>
+            <button 
+              onClick={fetchPersons} 
+              className="refresh-button"
+              disabled={isAnyParticipantEditing}
+            >
+              Refresh Participants
+            </button>
+          </div>
+          
+          {/* Show total percentage during editing */}
+          {isAnyParticipantEditing && (
+            <div className="total-percentage">
+              Total: {participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0).toFixed(1)}%
+              {Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) > 0.1 && (
+                <span className="warning"> (Should be 100%)</span>
+              )}
+            </div>
+          )}
+          
+          <p className="note">Note: Participants are synchronized with the people in your database.</p>
+        </div>
       </header>
       
-      {/* Only show add button in the expenses view */}
-      {!showSharing && (
-        <button className="PlusButton" onClick={() => setShowAddDialog(true)} aria-label="Add Expense">
-          <FaPlus />
-        </button>
-      )}
+      {/* Floating plus button for adding expenses */}
+      <button className="PlusButton" onClick={() => setShowAddDialog(true)} aria-label="Add Expense">
+        <FaPlus />
+      </button>
 
       {showAddDialog && (
         <div className="dialog-overlay">
@@ -697,14 +898,19 @@ function App() {
             <label>
               Purchased By:
               <select
-                value={newExpense.purchasedBy}
-                onChange={(e) => setNewExpense({ ...newExpense, purchasedBy: e.target.value })}
+                value={newExpense.person_id || ''}
+                onChange={(e) => setNewExpense({ ...newExpense, person_id: parseInt(e.target.value, 10) })}
               >
-                {Object.values(personsMap).map((personName) => (
-                  <option key={personName} value={personName}>
-                    {personName}
-                  </option>
-                ))}
+                <option value="" disabled>Select a person</option>
+                {persons.length > 0 ? (
+                  persons.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>No persons available</option>
+                )}
               </select>
             </label>
             <label>
@@ -724,9 +930,19 @@ function App() {
               />
             </label>
             <div className="dialog-actions">
-              <button onClick={handleAddExpense}>Add</button>
+              <button 
+                onClick={handleAddExpense}
+                disabled={!newExpense.person_id || persons.length === 0}
+              >
+                Add
+              </button>
               <button onClick={() => setShowAddDialog(false)}>Cancel</button>
             </div>
+            {persons.length === 0 && (
+              <div className="error-message" style={{color: 'red', marginTop: '10px'}}>
+                No persons available. Please make sure your database has people records.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -735,3 +951,4 @@ function App() {
 }
 
 export default App;
+                      

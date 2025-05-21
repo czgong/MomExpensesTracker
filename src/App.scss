@@ -473,7 +473,7 @@ body, html, .App {
   }
 }
 
-/* Add styles for participants table */
+/* Updated styles for two-column participants table */
 .participants-table {
   width: 100%;
   border-collapse: collapse;
@@ -491,15 +491,28 @@ body, html, .App {
     font-weight: 600;
   }
   
-  td {
+  /* Make first column (Name) take more space */
+  th:first-child, td:first-child {
+    width: 60%;
+  }
+  
+  /* Make second column (Percentage) take less space and center align */
+  th:nth-child(2), td:nth-child(2) {
+    width: 40%;
+    text-align: center;
+  }
+  
+  /* Center align the percentage input for better appearance */
+  .percentage-cell {
     position: relative;
+    text-align: center;
     
     .percent-input {
       width: 100px;
       padding: 8px;
       border: 1px solid $table-border-color;
       border-radius: 4px;
-      margin-right: 5px;
+      text-align: center;
       
       &:focus {
         outline: none;
@@ -507,6 +520,32 @@ body, html, .App {
         box-shadow: 0 0 0 2px rgba($primary-color, 0.1);
       }
     }
+    
+    /* Only show the pseudo-element with % sign when in edit mode */
+    &.editing:after {
+      content: "%";
+      position: absolute;
+      right: auto;
+      top: 50%;
+      transform: translateY(-50%);
+      margin-left: -25px;
+    }
+    
+    /* Remove the default :after from all percentage cells */
+    &:not(.editing):after {
+      content: none;
+    }
+    
+    /* Span for non-editing mode */
+    .percent-value {
+      font-size: 1rem;
+      font-weight: 500;
+    }
+  }
+  
+  /* Add subtle hover effect */
+  tr:hover {
+    background-color: rgba($primary-color, 0.03);
   }
 }
 
@@ -602,5 +641,301 @@ body, html, .App {
   
   &:hover {
     background-color: darken($accent-color-2, 10%);
+  }
+}
+
+/* Better styling for info text */
+.info-text {
+  color: #666;
+  font-size: 0.95rem;
+  margin-bottom: 18px;
+  line-height: 1.4;
+  background-color: rgba($primary-color, 0.05);
+  padding: 10px 15px;
+  border-radius: 6px;
+  border-left: 3px solid $primary-color;
+}
+
+.note {
+  color: #777;
+  font-size: 0.85rem;
+  font-style: italic;
+  margin-top: 10px;
+}
+
+/* Action buttons row for Reset and Refresh */
+.actions-row {
+  display: flex;
+  gap: 10px;
+  margin: 15px 0;
+  
+  button {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+    
+    &.reset-button {
+      background-color: #f0f0f0;
+      color: #333;
+      
+      &:hover {
+        background-color: #e0e0e0;
+      }
+    }
+    
+    &.refresh-button {
+      background-color: #e3f2fd;
+      color: #0277bd;
+      
+      &:hover {
+        background-color: #bbdefb;
+      }
+    }
+  }
+}
+
+/* Improved styles for the participants section */
+.participants-section {
+  margin-bottom: 30px !important;
+  
+  h3 {
+    margin-bottom: 10px !important;
+  }
+}
+
+/* Dollar sign styling for balances */
+.balances-table {
+  td:nth-child(2), 
+  td:nth-child(3) {
+    position: relative;
+    
+    &:before {
+      content: "";
+      margin-right: 3px;
+    }
+  }
+}
+
+/* Add these styles to your App.scss file */
+
+/* Section header with edit controls */
+/* Enhanced section header styling */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba($primary-color, 0.2);
+  padding-bottom: 10px;
+  
+  h3 {
+    margin: 0 !important;
+    color: $accent-color-2;
+    font-size: 1.3rem;
+  }
+  
+  .edit-actions {
+    display: flex;
+    gap: 10px;
+    
+    button {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 8px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      
+      &.save-button {
+        background-color: #4caf50;
+        color: white;
+        
+        &:hover {
+          background-color: darken(#4caf50, 10%);
+        }
+      }
+      
+      &.cancel-button {
+        background-color: #f44336;
+        color: white;
+        
+        &:hover {
+          background-color: darken(#f44336, 10%);
+        }
+      }
+    }
+  }
+  
+  .edit-all-button {
+    background-color: $primary-color;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 15px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: background-color 0.2s;
+    
+    &:hover {
+      background-color: darken($primary-color, 10%);
+    }
+    
+    /* Add pencil icon with CSS */
+    &:before {
+      content: "✏️";
+      font-size: 0.9em;
+    }
+  }
+}
+
+/* Enhanced total percentage display */
+.total-percentage {
+  margin-top: 15px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #555;
+  background-color: #f8f8f8;
+  padding: 12px 15px;
+  border-radius: 6px;
+  text-align: center;
+  border: 1px dashed #ddd;
+  
+  .warning {
+    color: #f44336;
+    font-weight: 600;
+    margin-left: 6px;
+    
+    /* Add warning icon */
+    &:before {
+      content: "⚠️";
+      margin-right: 4px;
+    }
+  }
+  
+  /* Add special styling when total is 100% */
+  &.valid-total {
+    background-color: rgba(#4caf50, 0.1);
+    border: 1px solid rgba(#4caf50, 0.2);
+    color: #2e7d32;
+    
+    &:before {
+      content: "✓";
+      margin-right: 6px;
+      font-weight: bold;
+    }
+  }
+}
+
+/* Improved action buttons row */
+.actions-row {
+  display: flex;
+  gap: 15px;
+  margin: 20px 0;
+  justify-content: center;
+  
+  button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: background-color 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    
+    &.reset-button {
+      background-color: #f0f0f0;
+      color: #333;
+      
+      &:hover:not(:disabled) {
+        background-color: #e0e0e0;
+      }
+    }
+    
+    &.refresh-button {
+      background-color: #e3f2fd;
+      color: #0277bd;
+      
+      &:hover:not(:disabled) {
+        background-color: #bbdefb;
+      }
+    }
+  }
+}
+
+/* Edit button in participants table */
+.edit-button {
+  background-color: #86A69D;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.3s;
+  
+  &:hover {
+    background-color: darken(#86A69D, 10%);
+  }
+}
+
+/* Make percentage display consistent */
+.percentage-cell {
+  font-size: 1rem;
+}
+
+/* Fix for percentage cell display */
+.percentage-cell {
+  position: relative;
+  
+  /* Only show the pseudo-element with % sign when in edit mode */
+  &.editing:after {
+    content: "%";
+    position: absolute;
+    right: auto;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: -25px;
+  }
+  
+  /* Remove the default :after from all percentage cells */
+  &:not(.editing):after {
+    content: none;
+  }
+  
+  /* Span for non-editing mode */
+  .percent-value {
+    font-size: 1rem;
+  }
+  
+  /* Styling for input in edit mode */
+  .percent-input {
+    width: 100px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    
+    &:focus {
+      outline: none;
+      border-color: #86A69D;
+      box-shadow: 0 0 0 2px rgba(134, 166, 157, 0.1);
+    }
   }
 }
