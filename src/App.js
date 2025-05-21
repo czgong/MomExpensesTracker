@@ -29,6 +29,9 @@ function App() {
   // State to track if percentages need validation
   const [needsValidation, setNeedsValidation] = useState(false);
 
+  // Add a new state to store the original percentages before editing
+const [originalParticipants, setOriginalParticipants] = useState([]);
+
   // Function to format a percentage to one decimal place
   const formatPercentage = (value) => {
     return parseFloat(parseFloat(value).toFixed(1));
@@ -505,19 +508,20 @@ function App() {
   };
   
   // Toggle edit mode for all participants
-  const toggleAllPercentEdit = (editing) => {
-    const newEditState = participants.reduce((map, p) => ({ 
-      ...map, 
-      [p.id]: editing 
-    }), {});
-    
-    setEditingParticipants(newEditState);
-    
-    // Reset validation flag when entering edit mode
-    if (editing) {
-      setNeedsValidation(false);
-    }
-  };
+const toggleAllPercentEdit = (editing) => {
+  const newEditState = participants.reduce((map, p) => ({ 
+    ...map, 
+    [p.id]: editing 
+  }), {});
+  
+  setEditingParticipants(newEditState);
+  
+  // If entering edit mode, save a deep copy of the current participants state
+  if (editing) {
+    setOriginalParticipants(JSON.parse(JSON.stringify(participants)));
+    setNeedsValidation(false);
+  }
+};
   // Compatibility function for any remaining references to togglePercentEdit
 const togglePercentEdit = (id) => {
   console.warn("togglePercentEdit is deprecated. Use toggleAllPercentEdit instead.");
@@ -580,24 +584,16 @@ const togglePercentEdit = (id) => {
   };
   
   // Cancel editing and revert to previous values
-  const cancelPercentEdit = () => {
-    // Revert to saved values by re-loading from localStorage
-    const savedParticipantsJSON = localStorage.getItem('participants');
-    if (savedParticipantsJSON) {
-      try {
-        const savedParticipants = JSON.parse(savedParticipantsJSON);
-        setParticipants(savedParticipants);
-      } catch (e) {
-        console.error("Error parsing saved participants:", e);
-      }
-    }
-    
-    // Exit edit mode
-    toggleAllPercentEdit(false);
-    
-    // Clear validation flag
-    setNeedsValidation(false);
-  };
+const cancelPercentEdit = () => {
+  // Restore from the backup we created when entering edit mode
+  setParticipants(originalParticipants);
+  
+  // Exit edit mode
+  toggleAllPercentEdit(false);
+  
+  // Clear validation flag
+  setNeedsValidation(false);
+};
   
   // Reset all percentages to equal distribution
   const resetPercentages = () => {
@@ -864,9 +860,13 @@ const togglePercentEdit = (id) => {
             </button>
           </div>
           
-          {/* Show total percentage during editing */}
+          {/* Show total percentage during editing with conditional styling */}
           {isAnyParticipantEditing && (
-            <div className="total-percentage">
+            <div className={
+              Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) <= 0.1 
+                ? "total-percentage valid-total" 
+                : "total-percentage"
+            }>
               Total: {participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0).toFixed(1)}%
               {Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) > 0.1 && (
                 <span className="warning"> (Should be 100%)</span>
