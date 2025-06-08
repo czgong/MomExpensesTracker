@@ -1,0 +1,12 @@
+{
+  "name": "family-expense-tracker",
+  "version": "1.0.0",
+  "homepage": ".",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "build:prod": "NODE_ENV=production npm run build",
+    "deploy:railway": "npm run build:prod && railway up",
+    "deploy:vercel": "npm run build && vercel --prod"
+  }
+}
