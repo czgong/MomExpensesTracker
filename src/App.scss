@@ -22,17 +22,7 @@ body, html, .App {
   min-height: 100vh;
 }
 
-/* Logo styling with animation */
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
+/* Legacy logo styles removed - no longer needed */
 
 /* Header container - now just for the top section */
 .app-header {
@@ -708,15 +698,7 @@ body, html, .App {
   font-weight: bold;
 }
 
-/* Logo spin keyframes */
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
+/* Logo spin keyframes removed - no longer needed */
 
 .view-toggle {
   display: flex;
