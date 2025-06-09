@@ -36,6 +36,12 @@ function App() {
   
   // State to track if percentages need validation
   const [needsValidation, setNeedsValidation] = useState(false);
+  
+  // View toggle state - true for cards, false for table
+  const [isCardView, setIsCardView] = useState(true);
+  
+  // Sidebar collapse state
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Add a new state to store the original percentages before editing
 const [originalParticipants, setOriginalParticipants] = useState([]);
@@ -929,84 +935,148 @@ const cancelPercentEdit = () => {
 
   return (
     <div className="App">
-      <header className="App-header">
+      <header className="app-header">
         <div className="header-content">
           <img src="https://i.imgur.com/IHOQAqS.jpg" alt="Siblings" className="header-photo-large" />
           <h1 className="expenses-title">Mother's Expenses</h1>
         </div>
-            
-        {/* Month tabs navigation - Dropdown on left, then months ordered with most recent on right */}
-        {monthTabs.length > 0 && (
-          <div className="month-tabs">
-            {/* Dropdown for older months on the left */}
-            {monthTabs.length > 3 && (
-              <div className="month-dropdown">
-                <select 
-                  value={activeMonthTab}
-                  onChange={handleMonthDropdownChange}
-                  className={monthTabs.slice(3).some(m => m.key === activeMonthTab) ? "active-month-dropdown" : ""}
+      </header>
+      
+      <div className="main-layout">
+        {/* Left Timeline Sidebar */}
+        <div className="timeline-sidebar">
+          {monthTabs.length > 0 && (
+            <div className="timeline-nav">
+              <div className="timeline-header">
+                <h3>Timeline</h3>
+                <button 
+                  className="current-month-btn"
+                  onClick={() => {
+                    const currentMonth = new Date().toISOString().slice(0, 7);
+                    const currentMonthTab = monthTabs.find(m => m.key === currentMonth);
+                    if (currentMonthTab) setActiveMonthTab(currentMonth);
+                  }}
                 >
-                  <option value="" disabled>Older Months</option>
-                  {monthTabs.slice(3).map(month => (
-                    <option key={month.key} value={month.key}>
-                      {month.name}
-                    </option>
-                  ))}
-                </select>
+                  Now
+                </button>
               </div>
-            )}
-            
-            {/* Show buttons for the 3 most recent months in reverse order */}
-            {monthTabs.slice(0, 3).reverse().map(month => (
-              <button
-                key={month.key}
-                className={activeMonthTab === month.key ? "active-month" : ""}
-                onClick={() => setActiveMonthTab(month.key)}
-              >
-                {month.name}
-              </button>
-            ))}
+              
+              <div className="timeline-list">
+                {monthTabs.map((month, index) => {
+                  const isActive = activeMonthTab === month.key;
+                  const expenseCount = month.expenses.length;
+                  const totalAmount = month.expenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
+                  
+                  return (
+                    <div
+                      key={month.key}
+                      className={`timeline-month ${isActive ? 'active' : ''} ${expenseCount > 0 ? 'has-data' : ''}`}
+                      onClick={() => setActiveMonthTab(month.key)}
+                    >
+                      <div className="month-info">
+                        <div className="month-name">{month.name}</div>
+                        {expenseCount > 0 && (
+                          <div className="month-stats">
+                            <span className="expense-count">{expenseCount}</span>
+                            <span className="expense-total">${totalAmount.toFixed(0)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="month-indicator">
+                        {expenseCount > 0 && <div className="activity-dot"></div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Main Content Area */}
+        <div className="content-area">
+          {/* View Toggle Control */}
+          <div className="view-controls">
+            <div className="view-toggle-wrapper">
+              <span className="view-label">View:</span>
+              <div className="view-toggle">
+                <button 
+                  className={`toggle-btn ${isCardView ? 'active' : ''}`}
+                  onClick={() => setIsCardView(true)}
+                >
+                  <span className="toggle-icon">⊞</span>
+                  Cards
+                </button>
+                <button 
+                  className={`toggle-btn ${!isCardView ? 'active' : ''}`}
+                  onClick={() => setIsCardView(false)}
+                >
+                  <span className="toggle-icon">☰</span>
+                  List
+                </button>
+              </div>
+            </div>
           </div>
-        )}
-  
-        <table className="expenses-table">
-          <thead>
-            <tr>
-              <th>Cost</th>
-              <th>Purchased By</th>
-              <th>Date</th>
-              <th>Comment</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {activeMonthExpenses.length === 0 ? (
-              <tr>
-                <td colSpan="5">No expenses available for this month.</td>
-              </tr>
-            ) : (
-              activeMonthExpenses.map((expense) => {
-                // Find the index in the original expenses array
-                const index = expenses.findIndex(e => e.id === expense.id);
-                
-                return (
-                  <tr key={expense.id || index}>
-                    <td>
+        
+        {isCardView ? (
+          <div className="expenses-grid">
+          {activeMonthExpenses.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">💳</div>
+              <h3>No expenses yet</h3>
+              <p>Add your first expense to get started</p>
+            </div>
+          ) : (
+            activeMonthExpenses.map((expense, cardIndex) => {
+              // Find the index in the original expenses array
+              const index = expenses.findIndex(e => e.id === expense.id);
+              
+              return (
+                <div key={expense.id || index} className={`expense-card ${expense.isEditing ? 'editing' : ''}`}>
+                  <div className="card-header">
+                    <div className="cost-section">
                       {expense.isEditing ? (
                         <input
                           type="number"
                           value={expense.cost}
                           onChange={(e) => handleEditChange(index, 'cost', e.target.value)}
+                          className="cost-input"
                         />
                       ) : (
-                        expense.cost
+                        <span className="cost-display">${expense.cost}</span>
                       )}
-                    </td>
-                    <td>
+                    </div>
+                    <div className="card-actions">
+                      {expense.isEditing ? (
+                        <>
+                          <button onClick={() => saveExpense(index)} className="save-btn">
+                            <FaCheck />
+                          </button>
+                          <button onClick={() => toggleEdit(index, false)} className="cancel-btn">
+                            <FaTimes />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => toggleEdit(index, true)} className="edit-btn">
+                            Edit
+                          </button>
+                          <button onClick={() => deleteExpense(index)} className="delete-btn">
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="card-body">
+                    <div className="field-group">
+                      <label>Purchased by</label>
                       {expense.isEditing ? (
                         <select
                           value={expense.person_id}
                           onChange={(e) => handleEditChange(index, 'person_id', e.target.value)}
+                          className="person-select"
                         >
                           {persons.map((person) => (
                             <option key={person.id} value={person.id}>
@@ -1015,237 +1085,353 @@ const cancelPercentEdit = () => {
                           ))}
                         </select>
                       ) : (
-                        expense.purchasedBy
+                        <span className="person-name">{expense.purchasedBy}</span>
                       )}
-                    </td>
-                    <td>
+                    </div>
+                    
+                    <div className="field-group">
+                      <label>Date</label>
                       {expense.isEditing ? (
                         <input
                           type="date"
                           value={expense.date}
                           onChange={(e) => handleEditChange(index, 'date', e.target.value)}
+                          className="date-input"
                         />
                       ) : (
-                        expense.date
+                        <span className="date-display">{new Date(expense.date).toLocaleDateString()}</span>
                       )}
-                    </td>
-                    <td>
+                    </div>
+                    
+                    <div className="field-group">
+                      <label>Comment</label>
                       {expense.isEditing ? (
                         <input
                           type="text"
                           value={expense.comment}
                           onChange={(e) => handleEditChange(index, 'comment', e.target.value)}
+                          className="comment-input"
+                          placeholder="Add a note..."
                         />
                       ) : (
-                        expense.comment
+                        <span className="comment-text">{expense.comment}</span>
                       )}
-                    </td>
-                    <td className="edit-actions">
-                      {expense.isEditing ? (
-                        <>
-                          <button onClick={() => saveExpense(index)}>Save</button>
-                          <button onClick={() => toggleEdit(index, false)} className="cancel-button">Cancel</button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => toggleEdit(index, true)}>Edit</button>
-                          <button onClick={() => deleteExpense(index)}>Delete</button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-        
-        {/* Monthly Balance Breakdown Section */}
-        {monthlySummary && monthlySummary.balances && (
-          <div className="sharing-section monthly-balance">
-            <h3>{monthlySummary.month} Balance Breakdown</h3>
-            
-            <div className="total-summary">
-              <p>Total Expenses: ${monthlySummary.totalExpenses.toFixed(2)}</p>
-            </div>
-            
-            <h4>Who Owes What</h4>
-            
-            <table className="balances-table">
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        ) : (
+          <div className="expenses-table-view">
+            <table className="expenses-table modern">
               <thead>
                 <tr>
-                  <th>Person</th>
-                  <th>Paid</th>
-                  <th>Owes</th>
-                  <th>Net Balance</th>
+                  <th>Cost</th>
+                  <th>Purchased By</th>
+                  <th>Date</th>
+                  <th>Comment</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {monthlySummary.balances.map(balance => (
-                  <tr key={balance.id}>
-                    <td>{balance.name}</td>
-                    <td>${balance.paid.toFixed(2)}</td>
-                    <td>${balance.owes.toFixed(2)}</td>
-                    <td className={balance.netBalance >= 0 ? 'positive-balance' : 'negative-balance'}>
-                      {balance.netBalance >= 0 ? 
-                        `Gets $${balance.netBalance.toFixed(2)}` : 
-                        `Owes $${Math.abs(balance.netBalance).toFixed(2)}`}
+                {activeMonthExpenses.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="empty-cell">
+                      <div className="table-empty-state">
+                        <span className="empty-icon">💳</span>
+                        <span>No expenses yet</span>
+                      </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            
-            {/* Payment Settlements Section */}
-            {monthlySummary.settlements && monthlySummary.settlements.length > 0 && (
-              <>
-                <h4>Payment Settlements</h4>
-                <p className="settlement-info">Who needs to pay whom to settle all balances:</p>
-                
-                <table className="settlements-table">
-                  <thead>
-                    <tr>
-                      <th>From</th>
-                      <th>To</th>
-                      <th>Amount</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlySummary.settlements.map(settlement => (
-                      <tr key={settlement.id} className={paymentStatus[settlement.id]?.paid ? 'paid-settlement' : 'unpaid-settlement'}>
-                        <td>{settlement.from}</td>
-                        <td>{settlement.to}</td>
-                        <td>${settlement.amount.toFixed(2)}</td>
-                        <td className="settlement-status">
-                          <label className="checkbox-container">
+                ) : (
+                  activeMonthExpenses.map((expense, cardIndex) => {
+                    // Find the index in the original expenses array
+                    const index = expenses.findIndex(e => e.id === expense.id);
+                    
+                    return (
+                      <tr key={expense.id || index} className={expense.isEditing ? 'editing-row' : ''}>
+                        <td className="cost-cell">
+                          {expense.isEditing ? (
                             <input
-                              type="checkbox"
-                              checked={paymentStatus[settlement.id]?.paid || false}
-                              onChange={() => togglePaymentStatus(settlement, monthlySummary.key)}
-                              disabled={loadingPayments}
+                              type="number"
+                              value={expense.cost}
+                              onChange={(e) => handleEditChange(index, 'cost', e.target.value)}
+                              className="table-input cost-input-table"
                             />
-                            <span className="checkmark"></span>
-                            <div className="status-info">
-                              <span className="status-text">
-                                {paymentStatus[settlement.id]?.paid ? 'Paid' : 'Unpaid'}
-                              </span>
-                              {paymentStatus[settlement.id]?.updated_at && (
-                                <span className="timestamp">
-                                  {formatTimestamp(paymentStatus[settlement.id].updated_at)}
-                                </span>
-                              )}
+                          ) : (
+                            <span className="cost-display-table">${expense.cost}</span>
+                          )}
+                        </td>
+                        <td>
+                          {expense.isEditing ? (
+                            <select
+                              value={expense.person_id}
+                              onChange={(e) => handleEditChange(index, 'person_id', e.target.value)}
+                              className="table-select"
+                            >
+                              {persons.map((person) => (
+                                <option key={person.id} value={person.id}>
+                                  {person.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="person-name-table">{expense.purchasedBy}</span>
+                          )}
+                        </td>
+                        <td>
+                          {expense.isEditing ? (
+                            <input
+                              type="date"
+                              value={expense.date}
+                              onChange={(e) => handleEditChange(index, 'date', e.target.value)}
+                              className="table-input date-input-table"
+                            />
+                          ) : (
+                            <span className="date-display-table">{new Date(expense.date).toLocaleDateString()}</span>
+                          )}
+                        </td>
+                        <td>
+                          {expense.isEditing ? (
+                            <input
+                              type="text"
+                              value={expense.comment}
+                              onChange={(e) => handleEditChange(index, 'comment', e.target.value)}
+                              className="table-input comment-input-table"
+                              placeholder="Add a note..."
+                            />
+                          ) : (
+                            <span className="comment-text-table">{expense.comment}</span>
+                          )}
+                        </td>
+                        <td className="actions-cell">
+                          {expense.isEditing ? (
+                            <div className="table-actions">
+                              <button onClick={() => saveExpense(index)} className="save-btn-table">
+                                <FaCheck />
+                              </button>
+                              <button onClick={() => toggleEdit(index, false)} className="cancel-btn-table">
+                                <FaTimes />
+                              </button>
                             </div>
-                          </label>
+                          ) : (
+                            <div className="table-actions">
+                              <button onClick={() => toggleEdit(index, true)} className="edit-btn-table">
+                                Edit
+                              </button>
+                              <button onClick={() => deleteExpense(index)} className="delete-btn-table">
+                                Delete
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                
-                {/* Settlement Summary */}
-                <div className="settlement-summary">
-                  <p>
-                    <strong>
-                      {monthlySummary.settlements.filter(s => paymentStatus[s.id]?.paid).length} of {monthlySummary.settlements.length} payments completed
-                    </strong>
-                  </p>
-                  {monthlySummary.settlements.every(s => paymentStatus[s.id]?.paid) && (
-                    <p className="all-settled">🎉 All payments settled!</p>
-                  )}
-                </div>
-              </>
-            )}
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         )}
-         {/* Display both monthly and total costs */}
-        <div className="costs-summary">
-          <div className="month-cost">Current Month Total: ${monthTotalCost}</div>
-          <div className="total-cost">Overall Total: ${totalCost}</div>
-          <button 
-            className="import-csv-button" 
-            onClick={() => setShowImportDialog(true)}
-          >
-            Import CSV
-          </button>
-        </div>
-        {/* Participants Section - Now with edit mode */}
-        <div className="sharing-section participants-section">
-          <div className="section-header">
-            <h3>Participants & Sharing Percentages</h3>
-            {isAnyParticipantEditing ? (
-              <div className="edit-actions">
-                <button onClick={savePercentages} className="save-button">
-                  <FaCheck /> Save
-                </button>
-                <button onClick={cancelPercentEdit} className="cancel-button">
-                  <FaTimes /> Cancel
-                </button>
+        
+          {/* Monthly Balance Breakdown Section */}
+          {monthlySummary && monthlySummary.balances && (
+            <div className="sharing-section monthly-balance">
+              <h3>{monthlySummary.month} Balance Breakdown</h3>
+              
+              <div className="total-summary">
+                <p>Total Expenses: ${monthlySummary.totalExpenses.toFixed(2)}</p>
               </div>
-            ) : (
-              <button onClick={() => toggleAllPercentEdit(true)} className="edit-all-button">
-                Edit Percentages
-              </button>
-            )}
-          </div>
-          
-          <p className="info-text">
-            These percentages determine how expenses are shared among participants for{' '}
-            <strong>{monthlySummary?.month || 'the current month'}</strong>.
-            {' '}Changes here only affect this month's calculations.
-          </p>
-          
-          <table className="participants-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Percentage Share</th>
-              </tr>
-            </thead>
-            <tbody>
-              {participants.map(person => (
-                <tr key={person.id}>
-                  <td>{person.name}</td>
-                  <td className={editingParticipants[person.id] ? "percentage-cell editing" : "percentage-cell"}>
-                    {editingParticipants[person.id] ? (
-                      <input                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          value={person.percentShare}
-                          onChange={(e) => handlePercentChange(person.id, e.target.value)}
-                        className="percent-input"
-                      />
-                    ) : (
-                      <span className="percent-value">{person.percentShare}%</span>
+              
+              <h4>Who Owes What</h4>
+              
+              <table className="balances-table">
+                <thead>
+                  <tr>
+                    <th>Person</th>
+                    <th>Paid</th>
+                    <th>Owes</th>
+                    <th>Net Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlySummary.balances.map(balance => (
+                    <tr key={balance.id}>
+                      <td>{balance.name}</td>
+                      <td>${balance.paid.toFixed(2)}</td>
+                      <td>${balance.owes.toFixed(2)}</td>
+                      <td className={balance.netBalance >= 0 ? 'positive-balance' : 'negative-balance'}>
+                        {balance.netBalance >= 0 ? 
+                          `Gets $${balance.netBalance.toFixed(2)}` : 
+                          `Owes $${Math.abs(balance.netBalance).toFixed(2)}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {/* Payment Settlements Section */}
+              {monthlySummary.settlements && monthlySummary.settlements.length > 0 && (
+                <>
+                  <h4>Payment Settlements</h4>
+                  <p className="settlement-info">Who needs to pay whom to settle all balances:</p>
+                  
+                  <table className="settlements-table">
+                    <thead>
+                      <tr>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlySummary.settlements.map(settlement => (
+                        <tr key={settlement.id} className={paymentStatus[settlement.id]?.paid ? 'paid-settlement' : 'unpaid-settlement'}>
+                          <td>{settlement.from}</td>
+                          <td>{settlement.to}</td>
+                          <td>${settlement.amount.toFixed(2)}</td>
+                          <td className="settlement-status">
+                            <label className="checkbox-container">
+                              <input
+                                type="checkbox"
+                                checked={paymentStatus[settlement.id]?.paid || false}
+                                onChange={() => togglePaymentStatus(settlement, monthlySummary.key)}
+                                disabled={loadingPayments}
+                              />
+                              <span className="checkmark"></span>
+                              <div className="status-info">
+                                <span className="status-text">
+                                  {paymentStatus[settlement.id]?.paid ? 'Paid' : 'Unpaid'}
+                                </span>
+                                {paymentStatus[settlement.id]?.updated_at && (
+                                  <span className="timestamp">
+                                    {formatTimestamp(paymentStatus[settlement.id].updated_at)}
+                                  </span>
+                                )}
+                              </div>
+                            </label>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  
+                  {/* Settlement Summary */}
+                  <div className="settlement-summary">
+                    <p>
+                      <strong>
+                        {monthlySummary.settlements.filter(s => paymentStatus[s.id]?.paid).length} of {monthlySummary.settlements.length} payments completed
+                      </strong>
+                    </p>
+                    {monthlySummary.settlements.every(s => paymentStatus[s.id]?.paid) && (
+                      <p className="all-settled">🎉 All payments settled!</p>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          
-          {/* Show total percentage during editing with conditional styling */}
-          {isAnyParticipantEditing && (
-            <div className={
-              Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) <= 0.1 
-                ? "total-percentage valid-total" 
-                : "total-percentage"
-            }>
-              Total: {participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0).toFixed(1)}%
-              {Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) > 0.1 && (
-                <span className="warning"> (Should be 100%)</span>
+                  </div>
+                </>
               )}
             </div>
           )}
           
-          <p className="note">
-            Note: Participants are synchronized with the people in your database. 
-            Percentage shares are saved per month - changing shares for one month won't affect other months.
-          </p>
+          {/* Display monthly and total costs */}
+          <div className="costs-summary">
+            <div className="month-cost">Current Month Total: ${monthTotalCost}</div>
+            <div className="total-cost">Overall Total: ${totalCost}</div>
+          </div>
         </div>
-      </header>
+        
+        {/* Right Sidebar */}
+        <div className={`right-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
+          <div className="sidebar-header">
+            <h3>Settings</h3>
+            <button 
+              className="sidebar-toggle"
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            >
+              {isSidebarCollapsed ? '→' : '←'}
+            </button>
+          </div>
+          
+          {!isSidebarCollapsed && (
+            <div className="sidebar-content">
+              {/* CSV Import Section */}
+              <div className="sidebar-section">
+                <h4>Import Data</h4>
+                <button 
+                  className="sidebar-button import-btn" 
+                  onClick={() => setShowImportDialog(true)}
+                >
+                  📥 Import CSV
+                </button>
+              </div>
+              
+              {/* Participants Section */}
+              <div className="sidebar-section participants-sidebar">
+                <div className="section-header">
+                  <h4>Sharing Percentages</h4>
+                  {isAnyParticipantEditing ? (
+                    <div className="edit-actions">
+                      <button onClick={savePercentages} className="save-button">
+                        <FaCheck />
+                      </button>
+                      <button onClick={cancelPercentEdit} className="cancel-button">
+                        <FaTimes />
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => toggleAllPercentEdit(true)} className="edit-button">
+                      ✏️
+                    </button>
+                  )}
+                </div>
+                
+                <p className="sidebar-info">
+                  Percentages for <strong>{monthlySummary?.month || 'current month'}</strong>
+                </p>
+                
+                <div className="participants-list">
+                  {participants.map(person => (
+                    <div key={person.id} className="participant-item">
+                      <span className="participant-name">{person.name}</span>
+                      <div className="participant-percentage">
+                        {editingParticipants[person.id] ? (
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={person.percentShare}
+                            onChange={(e) => handlePercentChange(person.id, e.target.value)}
+                            className="percent-input-sidebar"
+                          />
+                        ) : (
+                          <span className="percent-value">{person.percentShare}%</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Show total percentage during editing */}
+                {isAnyParticipantEditing && (
+                  <div className={
+                    Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) <= 0.1 
+                      ? "total-percentage valid-total" 
+                      : "total-percentage"
+                  }>
+                    Total: {participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0).toFixed(1)}%
+                    {Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) > 0.1 && (
+                      <span className="warning"> ⚠️</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
       
       {/* Floating plus button for adding expenses */}
       <button className="PlusButton" onClick={() => setShowAddDialog(true)} aria-label="Add Expense">
