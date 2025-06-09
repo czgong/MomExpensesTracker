@@ -1,6 +1,6 @@
 import './App.scss';
 import React, { useEffect, useState } from 'react';
-import { FaPlus, FaCheck, FaTimes, FaUndo } from 'react-icons/fa';
+import { FaPlus, FaCheck, FaTimes } from 'react-icons/fa';
 import API_URL from './config';
 
 // App successfully deployed and working!
@@ -930,7 +930,10 @@ const cancelPercentEdit = () => {
   return (
     <div className="App">
       <header className="App-header">
-        <h1 className="expenses-title">Mother's Expenses</h1>
+        <div className="header-content">
+          <img src="/siblings.png" alt="Siblings" className="header-photo" />
+          <h1 className="expenses-title">Mother's Expenses</h1>
+        </div>
             
         {/* Month tabs navigation - Dropdown on left, then months ordered with most recent on right */}
         {monthTabs.length > 0 && (
@@ -1222,22 +1225,6 @@ const cancelPercentEdit = () => {
             </tbody>
           </table>
           
-          <div className="actions-row">
-            <button 
-              onClick={resetPercentages} 
-              className="reset-button"
-              disabled={isAnyParticipantEditing}
-            >
-              <FaUndo /> Reset to Equal Shares
-            </button>
-            <button 
-              onClick={fetchPersons} 
-              className="refresh-button"
-              disabled={isAnyParticipantEditing}
-            >
-              Refresh Participants
-            </button>
-          </div>
           
           {/* Show total percentage during editing with conditional styling */}
           {isAnyParticipantEditing && (

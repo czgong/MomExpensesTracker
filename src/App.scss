@@ -45,10 +45,27 @@ body, html, .App {
 }
 
 /* Title styling */
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 1.5rem;
+  
+  .header-photo {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid $primary-color;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+}
+
 .expenses-title {
   font-size: clamp(2rem, 5vw, 3rem);
   color: $accent-color-2;
-  margin-bottom: 1.5rem;
+  margin: 0;
   font-weight: bold;
 }
 
