@@ -471,6 +471,26 @@ body, html, .App {
     font-weight: bold;
     color: $accent-color-2;
   }
+  
+  .import-csv-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+
+    &:hover {
+      background-color: #0056b3;
+    }
+
+    &:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+    }
+  }
 }
 
 /* Updated styles for two-column participants table */
@@ -936,6 +956,239 @@ body, html, .App {
       outline: none;
       border-color: #86A69D;
       box-shadow: 0 0 0 2px rgba(134, 166, 157, 0.1);
+    }
+  }
+}
+
+// Payment Settlements Styles
+.settlements-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  
+  th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid $table-border-color;
+  }
+  
+  th {
+    background-color: rgba($primary-color, 0.1);
+    color: $text-color;
+    font-weight: 600;
+  }
+  
+  .paid-settlement {
+    background-color: rgba(#4caf50, 0.1);
+    
+    td {
+      color: #2e7d32;
+    }
+  }
+  
+  .unpaid-settlement {
+    background-color: rgba(#ff9800, 0.05);
+  }
+  
+  .settlement-status {
+    text-align: center;
+  }
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  position: relative;
+  
+  input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 18px;
+    width: 18px;
+    margin: 0;
+  }
+  
+  .checkmark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 18px;
+    width: 18px;
+    background-color: #fff;
+    border: 2px solid #ddd;
+    border-radius: 3px;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    
+    &:after {
+      content: "";
+      position: absolute;
+      display: none;
+      left: 5px;
+      top: 2px;
+      width: 4px;
+      height: 8px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+  }
+  
+  input[type="checkbox"]:checked ~ .checkmark {
+    background-color: #4caf50;
+    border-color: #4caf50;
+    
+    &:after {
+      display: block;
+    }
+  }
+  
+  input[type="checkbox"]:disabled ~ .checkmark {
+    background-color: #f5f5f5;
+    border-color: #ccc;
+    cursor: not-allowed;
+  }
+  
+  .status-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    
+    .status-text {
+      font-weight: 500;
+    }
+    
+    .timestamp {
+      font-size: 0.75rem;
+      color: #666;
+      font-style: italic;
+      font-weight: normal;
+    }
+  }
+}
+
+.settlement-info {
+  color: #666;
+  font-style: italic;
+  margin-bottom: 15px;
+  background-color: rgba($secondary-color, 0.1);
+  padding: 10px 15px;
+  border-radius: 6px;
+  border-left: 3px solid $secondary-color;
+}
+
+.settlement-summary {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: rgba($primary-color, 0.05);
+  border-radius: 6px;
+  text-align: center;
+  
+  .all-settled {
+    color: #4caf50;
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin: 10px 0 0 0;
+  }
+}
+
+// Import Dialog Styles
+.import-dialog {
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+
+  .import-instructions {
+    margin-bottom: 20px;
+    
+    h3 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    ul {
+      margin: 10px 0;
+      padding-left: 20px;
+
+      li {
+        margin: 5px 0;
+        font-size: 14px;
+        
+        strong {
+          color: #007bff;
+        }
+      }
+    }
+
+    .sample-format {
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 15px;
+      margin-top: 15px;
+
+      h4 {
+        margin: 0 0 10px 0;
+        font-size: 14px;
+        color: #333;
+      }
+
+      pre {
+        background-color: #ffffff;
+        border: 1px solid #dee2e6;
+        border-radius: 3px;
+        padding: 10px;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        margin: 0;
+        overflow-x: auto;
+      }
+    }
+  }
+
+  .file-upload {
+    margin: 20px 0;
+
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .file-selected {
+      margin-top: 8px;
+      color: #28a745;
+      font-weight: bold;
+      font-size: 14px;
+    }
+  }
+
+  .import-button {
+    background-color: #28a745;
+    
+    &:hover:not(:disabled) {
+      background-color: #218838;
+    }
+    
+    &:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
     }
   }
 }
