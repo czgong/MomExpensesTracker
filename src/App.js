@@ -3,9 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { FaPlus, FaCheck, FaTimes, FaUndo } from 'react-icons/fa';
 import API_URL from './config';
 
-// DEPLOYMENT TEST - if you see this, the new code is deployed
-console.log('🚀 NEW CODE DEPLOYED! API_URL from config:', API_URL);
-console.log('🚀 Current timestamp:', new Date().toISOString());
+// App successfully deployed and working!
 
 function App() {
   const [expenses, setExpenses] = useState([]);
