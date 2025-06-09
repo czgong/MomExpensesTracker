@@ -1,12 +1,14 @@
 // API Configuration
-const API_URL = process.env.REACT_APP_API_URL || 'https://momexpensestracker-production.up.railway.app';
+// Force production URL since Vercel environment variables aren't working
+const API_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://momexpensestracker-production.up.railway.app'
+  : process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
-// Extensive debugging
+// Debugging
 console.log('=== API Configuration Debug ===');
-console.log('process.env.REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
 console.log('Final API_URL:', API_URL);
-console.log('process.env.NODE_ENV:', process.env.NODE_ENV);
-console.log('All REACT_APP env vars:', Object.keys(process.env).filter(key => key.startsWith('REACT_APP_')));
 console.log('=== End Debug ===');
 
 export default API_URL;
