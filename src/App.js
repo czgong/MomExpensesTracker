@@ -1373,15 +1373,15 @@ const cancelPercentEdit = () => {
                   <h4>Sharing Percentages</h4>
                   {isAnyParticipantEditing ? (
                     <div className="edit-actions">
-                      <button onClick={savePercentages} className="save-button">
-                        <FaCheck />
+                      <button onClick={savePercentages} className="save-button" title="Save changes">
+                        ✓
                       </button>
-                      <button onClick={cancelPercentEdit} className="cancel-button">
-                        <FaTimes />
+                      <button onClick={cancelPercentEdit} className="cancel-button" title="Cancel changes">
+                        ✕
                       </button>
                     </div>
                   ) : (
-                    <button onClick={() => toggleAllPercentEdit(true)} className="edit-button">
+                    <button onClick={() => toggleAllPercentEdit(true)} className="edit-button" title="Edit percentages">
                       ✏️
                     </button>
                   )}
