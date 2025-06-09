@@ -929,9 +929,8 @@ const cancelPercentEdit = () => {
 
   return (
     <div className="App">
-      <header className="App-header">
-        <div className="header-content">
-          <img src="/siblings.png" alt="Siblings" className="header-photo" />
+      <header className="App-header hero-header">
+        <div className="hero-overlay">
           <h1 className="expenses-title">Mother's Expenses</h1>
         </div>
             
