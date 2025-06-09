@@ -1,11 +1,21 @@
 import './App.scss';
 import React, { useEffect, useState } from 'react';
 import { FaPlus, FaCheck, FaTimes, FaUndo } from 'react-icons/fa';
+import API_URL from './config';
+
+// DEPLOYMENT TEST - if you see this, the new code is deployed
+console.log('🚀 NEW CODE DEPLOYED! API_URL from config:', API_URL);
+console.log('🚀 Current timestamp:', new Date().toISOString());
 
 function App() {
   const [expenses, setExpenses] = useState([]);
   // Remove showSharing state since we're not using the tab anymore
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState({}); // Track payment status by settlement ID
+  const [loadingPayments, setLoadingPayments] = useState(false);
   const [newExpense, setNewExpense] = useState({
     cost: 0,
     person_id: null,
@@ -59,7 +69,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   const fetchPersons = async () => {
     try {
       console.log('Fetching persons...');
-      const response = await fetch('/api/persons');
+      const response = await fetch(`${API_URL}/api/persons`);
       const data = await response.json();
       console.log('Persons response:', data);
       
@@ -72,8 +82,8 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       console.log('Setting persons state:', data);
       setPersons(data);
       
-      // Sync participants with persons
-      syncParticipantsWithPersons(data);
+      // Sync participants with persons (will be month-specific later when activeMonthTab is set)
+      await syncParticipantsWithPersons(data);
       
       // Set default person_id for newExpense if not set and persons exist
       if (newExpense.person_id === null && data.length > 0) {
@@ -88,32 +98,89 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     }
   };
   
+  // Load percentage shares for a specific month
+  const loadMonthlyShares = async (monthKey, personsData) => {
+    try {
+      const response = await fetch(`${API_URL}/api/monthly-shares/${monthKey}`);
+      if (response.ok) {
+        const monthlyShares = await response.json();
+        
+        // If no shares exist for this month, try to inherit from latest month
+        if (Object.keys(monthlyShares).length === 0) {
+          const latestResponse = await fetch(`${API_URL}/api/latest-shares`);
+          if (latestResponse.ok) {
+            const latestShares = await latestResponse.json();
+            return latestShares;
+          }
+        }
+        
+        return monthlyShares;
+      }
+    } catch (error) {
+      console.error('Error loading monthly shares:', error);
+    }
+    
+    // Fallback to equal distribution
+    const equalShare = personsData.length > 0 ? 100 / personsData.length : 0;
+    const defaultShares = {};
+    personsData.forEach(person => {
+      defaultShares[person.id] = parseFloat(equalShare.toFixed(2));
+    });
+    
+    return defaultShares;
+  };
+
+  // Save percentage shares for a specific month
+  const saveMonthlyShares = async (monthKey, participants) => {
+    try {
+      const shares = {};
+      participants.forEach(participant => {
+        shares[participant.id] = participant.percentShare;
+      });
+      
+      const response = await fetch(`${API_URL}/api/monthly-shares`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          monthKey: monthKey,
+          shares: shares
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save monthly shares');
+      }
+      
+      console.log(`Shares saved for month ${monthKey}`);
+    } catch (error) {
+      console.error('Error saving monthly shares:', error);
+      alert('Failed to save percentage shares. Please try again.');
+    }
+  };
+
   // Synchronize participants with persons from the database
-  const syncParticipantsWithPersons = (personsData) => {
+  const syncParticipantsWithPersons = async (personsData, monthKey = null, force = false) => {
     if (!personsData || personsData.length === 0) return;
     
-    // Get saved participants shares from localStorage if they exist
-    const savedParticipantsJSON = localStorage.getItem('participants');
-    let savedSharesMap = {};
+    // Use current active month if no monthKey provided
+    const targetMonthKey = monthKey || activeMonthTab;
     
-    if (savedParticipantsJSON) {
-      try {
-        const savedParticipants = JSON.parse(savedParticipantsJSON);
-        // Create a map of person ID to their saved percentage share
-        savedSharesMap = savedParticipants.reduce((map, participant) => {
-          map[participant.id] = participant.percentShare;
-          return map;
-        }, {});
-      } catch (e) {
-        console.error("Error parsing saved participants:", e);
-      }
+    // Skip if we already have participants for this month and not forcing
+    if (!force && participants.length === personsData.length && targetMonthKey) {
+      return;
+    }
+    
+    let monthlyShares = {};
+    if (targetMonthKey) {
+      monthlyShares = await loadMonthlyShares(targetMonthKey, personsData);
     }
     
     // Create new participants array from persons with shares
     const newParticipants = personsData.map(person => {
-      // Use saved percentage if available, otherwise divide evenly
-      const percentShare = savedSharesMap[person.id] || 
-                          (100 / personsData.length);
+      // Use monthly share if available, otherwise equal distribution
+      const percentShare = monthlyShares[person.id] || (100 / personsData.length);
       
       return {
         id: person.id,
@@ -134,11 +201,8 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       fixRoundingIssues(newParticipants);
     }
     
-    console.log('Synchronized participants:', newParticipants);
+    console.log(`Synchronized participants for month ${targetMonthKey}:`, newParticipants);
     setParticipants(newParticipants);
-    
-    // Save to localStorage
-    localStorage.setItem('participants', JSON.stringify(newParticipants));
     
     // Clear any editing states
     setEditingParticipants({});
@@ -147,7 +211,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   // Update fetchExpenses to handle the new data structure
   const fetchExpenses = async () => {
     try {
-      const response = await fetch('/api/data');
+      const response = await fetch(`${API_URL}/api/data`);
       if (!response.ok) {
         throw new Error('Failed to fetch expenses');
       }
@@ -245,7 +309,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       isEditing: true,
     };
 
-    fetch('/api/data', {
+    fetch(`${API_URL}/api/data`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newExpenseData)
@@ -288,7 +352,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     
     console.log("Adding expense with data:", newExpense);
     
-    fetch('/api/data', {
+    fetch(`${API_URL}/api/data`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newExpense)
@@ -376,7 +440,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       comment: expenseToUpdate.comment,
     };
     
-    fetch(`/api/data/${expenseToUpdate.id}`, {
+    fetch(`${API_URL}/api/data/${expenseToUpdate.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updateData)
@@ -410,7 +474,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       console.error("Invalid expense id. Cannot delete:", expenseToDelete);
       return;
     }
-    fetch(`/api/data/${expenseId}`, { method: 'DELETE' })
+    fetch(`${API_URL}/api/data/${expenseId}`, { method: 'DELETE' })
       .then(response => {
         if (response.ok) {
           setExpenses(prev => prev.filter(exp => exp.id !== expenseId));
@@ -421,11 +485,62 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       .catch(error => console.error('Error deleting expense:', error));
   };
   
+  // Calculate payment settlements - who owes whom
+  const calculatePaymentSettlements = (balances) => {
+    if (!balances || balances.length === 0) return [];
+    
+    // Create working copy of net balances
+    const workingBalances = balances.map(b => ({
+      ...b,
+      remainingBalance: b.netBalance
+    }));
+    
+    const settlements = [];
+    
+    // Find who owes money (negative balance) and who should receive money (positive balance)
+    for (let i = 0; i < workingBalances.length; i++) {
+      for (let j = 0; j < workingBalances.length; j++) {
+        if (i !== j) {
+          const creditor = workingBalances[i]; // Person who should receive money
+          const debtor = workingBalances[j];   // Person who owes money
+          
+          if (creditor.remainingBalance > 0.01 && debtor.remainingBalance < -0.01) {
+            const settlementAmount = Math.min(
+              creditor.remainingBalance, 
+              Math.abs(debtor.remainingBalance)
+            );
+            
+            if (settlementAmount > 0.01) { // Only create settlement if amount is significant
+              settlements.push({
+                from: debtor.name,
+                fromId: debtor.id,
+                to: creditor.name,
+                toId: creditor.id,
+                amount: Math.round(settlementAmount * 100) / 100,
+                id: `${debtor.id}-${creditor.id}`, // Unique identifier
+                paid: false // Default to unpaid
+              });
+              
+              // Update remaining balances
+              creditor.remainingBalance -= settlementAmount;
+              debtor.remainingBalance += settlementAmount;
+            }
+          }
+        }
+      }
+    }
+    
+    return settlements;
+  };
+
   // Calculate balances for the active month
   const calculateMonthlyBalances = (monthExpenses) => {
     if (!monthExpenses || monthExpenses.length === 0) return null;
     
     const totalMonthlyExpenses = monthExpenses.reduce((sum, expense) => sum + parseFloat(expense.cost || 0), 0);
+    
+    console.log('Calculating balances with participants:', participants.map(p => `${p.name}: ${p.percentShare}%`));
+    console.log('Total monthly expenses:', totalMonthlyExpenses);
     
     const paid = {};
     const owes = {};
@@ -460,9 +575,12 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       };
     });
     
+    const settlements = calculatePaymentSettlements(balances);
+    
     return {
       totalExpenses: totalMonthlyExpenses,
-      balances
+      balances,
+      settlements
     };
   };
 
@@ -485,7 +603,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   // Calculate total cost for the active month
   const monthTotalCost = activeMonthExpenses.reduce((sum, expense) => sum + Number(expense.cost), 0).toFixed(2);
   
-  // Calculate balances whenever active month or participants change
+  // Calculate balances whenever active month, expenses, or participants change
   useEffect(() => {
     if (activeMonthTab && monthTabs.length > 0) {
       const activeMonthData = monthTabs.find(month => month.key === activeMonthTab);
@@ -496,9 +614,22 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
           key: activeMonthData.key,
           ...summary
         });
+        
+        // Fetch payment statuses for this month
+        fetchPaymentStatuses(activeMonthData.key);
       }
     }
-  }, [activeMonthTab, participants, expenses]);
+  }, [activeMonthTab, expenses, participants]); // Re-added participants dependency
+
+  // Separate effect for loading participants when month changes
+  useEffect(() => {
+    if (activeMonthTab && persons.length > 0) {
+      const activeMonthData = monthTabs.find(month => month.key === activeMonthTab);
+      if (activeMonthData) {
+        syncParticipantsWithPersons(persons, activeMonthData.key, true); // Force reload
+      }
+    }
+  }, [activeMonthTab, persons]); // Only when month or persons change
 
   // Handle dropdown selection
   const handleMonthDropdownChange = (e) => {
@@ -533,16 +664,23 @@ const togglePercentEdit = (id) => {
     // Limit input to one decimal place
     const formattedPercent = formatPercentage(newPercent);
     
-    setParticipants(prev => prev.map(p => 
-      p.id === id ? { ...p, percentShare: formattedPercent } : p
-    ));
+    setParticipants(prev => {
+      const updated = prev.map(p => 
+        p.id === id ? { ...p, percentShare: formattedPercent } : p
+      );
+      
+      // Note: The balance recalculation will happen automatically via useEffect
+      // when participants state changes
+      
+      return updated;
+    });
     
     // Mark that we need validation when saving
     setNeedsValidation(true);
   };
   
   // Save edited percentages and validate
-  const savePercentages = () => {
+  const savePercentages = async () => {
     // Create a copy of the current participants
     const updatedParticipants = [...participants];
     
@@ -573,14 +711,29 @@ const togglePercentEdit = (id) => {
     // Update participants with validated percentages
     setParticipants(updatedParticipants);
     
+    // Save to database for current month
+    if (activeMonthTab) {
+      await saveMonthlyShares(activeMonthTab, updatedParticipants);
+    }
+    
+    // Force recalculation of balances with new percentages
+    if (activeMonthTab && monthTabs.length > 0) {
+      const activeMonthData = monthTabs.find(month => month.key === activeMonthTab);
+      if (activeMonthData) {
+        const summary = calculateMonthlyBalances(activeMonthData.expenses);
+        setMonthlySummary({
+          month: activeMonthData.name,
+          key: activeMonthData.key,
+          ...summary
+        });
+      }
+    }
+    
     // Exit edit mode
     toggleAllPercentEdit(false);
     
     // Clear validation flag
     setNeedsValidation(false);
-    
-    // Save to localStorage
-    localStorage.setItem('participants', JSON.stringify(updatedParticipants));
   };
   
   // Cancel editing and revert to previous values
@@ -596,7 +749,7 @@ const cancelPercentEdit = () => {
 };
   
   // Reset all percentages to equal distribution
-  const resetPercentages = () => {
+  const resetPercentages = async () => {
     if (!participants.length) return;
     
     const equalShare = formatPercentage(100 / participants.length);
@@ -610,8 +763,167 @@ const cancelPercentEdit = () => {
     
     setParticipants(updatedParticipants);
     
-    // Save to localStorage
-    localStorage.setItem('participants', JSON.stringify(updatedParticipants));
+    // Save to database for current month
+    if (activeMonthTab) {
+      await saveMonthlyShares(activeMonthTab, updatedParticipants);
+    }
+    
+    // Force recalculation of balances with new percentages
+    if (activeMonthTab && monthTabs.length > 0) {
+      const activeMonthData = monthTabs.find(month => month.key === activeMonthTab);
+      if (activeMonthData) {
+        const summary = calculateMonthlyBalances(activeMonthData.expenses);
+        setMonthlySummary({
+          month: activeMonthData.name,
+          key: activeMonthData.key,
+          ...summary
+        });
+      }
+    }
+  };
+
+  // Handle CSV import
+  const handleImportCSV = async () => {
+    if (!importFile) {
+      alert('Please select a CSV file to import');
+      return;
+    }
+
+    setImporting(true);
+    
+    const formData = new FormData();
+    formData.append('csv', importFile);
+
+    try {
+      const response = await fetch(`${API_URL}/api/import-csv`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        alert(`Successfully imported ${result.imported} expenses!`);
+        setShowImportDialog(false);
+        setImportFile(null);
+        // Refresh the expenses list
+        await fetchExpenses();
+      } else {
+        console.error('Import error:', result);
+        let errorMessage = result.error || 'Failed to import CSV';
+        
+        if (result.details && Array.isArray(result.details)) {
+          errorMessage += '\n\nDetailed errors:\n' + result.details.slice(0, 5).join('\n');
+          if (result.details.length > 5) {
+            errorMessage += `\n... and ${result.details.length - 5} more errors`;
+          }
+        }
+        
+        if (result.sample_format) {
+          errorMessage += '\n\n' + result.sample_format;
+        }
+        
+        alert(errorMessage);
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      alert('Failed to import CSV file. Please try again.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Fetch payment statuses for a specific month
+  const fetchPaymentStatuses = async (monthKey) => {
+    try {
+      setLoadingPayments(true);
+      const response = await fetch(`${API_URL}/api/payments/${monthKey}`);
+      if (response.ok) {
+        const payments = await response.json();
+        setPaymentStatus(prev => ({
+          ...prev,
+          ...payments
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching payment statuses:', error);
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  // Toggle payment status for a settlement and persist to backend
+  const togglePaymentStatus = async (settlement, monthKey) => {
+    const currentStatus = paymentStatus[settlement.id];
+    const newPaidStatus = !(currentStatus?.paid || false);
+    
+    // Optimistic update with timestamp
+    const now = new Date().toISOString();
+    setPaymentStatus(prev => ({
+      ...prev,
+      [settlement.id]: {
+        paid: newPaidStatus,
+        updated_at: now,
+        created_at: currentStatus?.created_at || now
+      }
+    }));
+
+    try {
+      const response = await fetch(`${API_URL}/api/payments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          paymentKey: settlement.id,
+          monthKey: monthKey,
+          fromPersonId: settlement.fromId,
+          toPersonId: settlement.toId,
+          amount: settlement.amount,
+          paid: newPaidStatus
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update payment status');
+      }
+      
+      // Refresh payment status to get accurate server timestamp
+      fetchPaymentStatuses(monthKey);
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      // Revert optimistic update on error
+      setPaymentStatus(prev => ({
+        ...prev,
+        [settlement.id]: currentStatus || { paid: false }
+      }));
+      alert('Failed to update payment status. Please try again.');
+    }
+  };
+
+  // Helper function to format timestamps
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
+    // For older dates, show the actual date
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
   
   // Check if any participant is in edit mode
@@ -655,7 +967,7 @@ const cancelPercentEdit = () => {
             ))}
           </div>
         )}
-        
+  
         <table className="expenses-table">
           <thead>
             <tr>
@@ -747,12 +1059,6 @@ const cancelPercentEdit = () => {
           </tbody>
         </table>
         
-        {/* Display both monthly and total costs */}
-        <div className="costs-summary">
-          <div className="month-cost">Current Month Total: ${monthTotalCost}</div>
-          <div className="total-cost">Overall Total: ${totalCost}</div>
-        </div>
-        
         {/* Monthly Balance Breakdown Section */}
         {monthlySummary && monthlySummary.balances && (
           <div className="sharing-section monthly-balance">
@@ -788,9 +1094,80 @@ const cancelPercentEdit = () => {
                 ))}
               </tbody>
             </table>
+            
+            {/* Payment Settlements Section */}
+            {monthlySummary.settlements && monthlySummary.settlements.length > 0 && (
+              <>
+                <h4>Payment Settlements</h4>
+                <p className="settlement-info">Who needs to pay whom to settle all balances:</p>
+                
+                <table className="settlements-table">
+                  <thead>
+                    <tr>
+                      <th>From</th>
+                      <th>To</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlySummary.settlements.map(settlement => (
+                      <tr key={settlement.id} className={paymentStatus[settlement.id]?.paid ? 'paid-settlement' : 'unpaid-settlement'}>
+                        <td>{settlement.from}</td>
+                        <td>{settlement.to}</td>
+                        <td>${settlement.amount.toFixed(2)}</td>
+                        <td className="settlement-status">
+                          <label className="checkbox-container">
+                            <input
+                              type="checkbox"
+                              checked={paymentStatus[settlement.id]?.paid || false}
+                              onChange={() => togglePaymentStatus(settlement, monthlySummary.key)}
+                              disabled={loadingPayments}
+                            />
+                            <span className="checkmark"></span>
+                            <div className="status-info">
+                              <span className="status-text">
+                                {paymentStatus[settlement.id]?.paid ? 'Paid' : 'Unpaid'}
+                              </span>
+                              {paymentStatus[settlement.id]?.updated_at && (
+                                <span className="timestamp">
+                                  {formatTimestamp(paymentStatus[settlement.id].updated_at)}
+                                </span>
+                              )}
+                            </div>
+                          </label>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {/* Settlement Summary */}
+                <div className="settlement-summary">
+                  <p>
+                    <strong>
+                      {monthlySummary.settlements.filter(s => paymentStatus[s.id]?.paid).length} of {monthlySummary.settlements.length} payments completed
+                    </strong>
+                  </p>
+                  {monthlySummary.settlements.every(s => paymentStatus[s.id]?.paid) && (
+                    <p className="all-settled">🎉 All payments settled!</p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
-        
+         {/* Display both monthly and total costs */}
+        <div className="costs-summary">
+          <div className="month-cost">Current Month Total: ${monthTotalCost}</div>
+          <div className="total-cost">Overall Total: ${totalCost}</div>
+          <button 
+            className="import-csv-button" 
+            onClick={() => setShowImportDialog(true)}
+          >
+            Import CSV
+          </button>
+        </div>
         {/* Participants Section - Now with edit mode */}
         <div className="sharing-section participants-section">
           <div className="section-header">
@@ -811,7 +1188,11 @@ const cancelPercentEdit = () => {
             )}
           </div>
           
-          <p className="info-text">These percentages determine how expenses are shared among participants.</p>
+          <p className="info-text">
+            These percentages determine how expenses are shared among participants for{' '}
+            <strong>{monthlySummary?.month || 'the current month'}</strong>.
+            {' '}Changes here only affect this month's calculations.
+          </p>
           
           <table className="participants-table">
             <thead>
@@ -874,7 +1255,10 @@ const cancelPercentEdit = () => {
             </div>
           )}
           
-          <p className="note">Note: Participants are synchronized with the people in your database.</p>
+          <p className="note">
+            Note: Participants are synchronized with the people in your database. 
+            Percentage shares are saved per month - changing shares for one month won't affect other months.
+          </p>
         </div>
       </header>
       
@@ -943,6 +1327,68 @@ const cancelPercentEdit = () => {
                 No persons available. Please make sure your database has people records.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* CSV Import Dialog */}
+      {showImportDialog && (
+        <div className="dialog-overlay">
+          <div className="dialog import-dialog">
+            <h2>Import Expenses from CSV</h2>
+            
+            <div className="import-instructions">
+              <h3>CSV Format Requirements:</h3>
+              <ul>
+                <li><strong>Required columns:</strong> cost (or amount), person (or purchased_by), date</li>
+                <li><strong>Optional:</strong> comment (or description)</li>
+                <li><strong>Date formats:</strong> Flexible - supports YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, "Dec 15 2024", etc.</li>
+                <li><strong>Person names</strong> must match exactly: {persons.map(p => p.name).join(', ')}</li>
+              </ul>
+              
+              <div className="sample-format">
+                <h4>Example CSV:</h4>
+                <pre>
+{`cost,person,date,comment
+25.50,Person 1,2024-12-15,Groceries
+12.00,Person 2,12/15/2024,Lunch
+45.75,Person 3,Dec 14 2024,Gas`}
+                </pre>
+              </div>
+            </div>
+
+            <div className="file-upload">
+              <label>
+                Select CSV File:
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setImportFile(e.target.files[0])}
+                />
+              </label>
+              {importFile && (
+                <p className="file-selected">Selected: {importFile.name}</p>
+              )}
+            </div>
+
+            <div className="dialog-actions">
+              <button 
+                onClick={handleImportCSV}
+                disabled={!importFile || importing}
+                className="import-button"
+              >
+                {importing ? 'Importing...' : 'Import'}
+              </button>
+              <button 
+                onClick={() => {
+                  setShowImportDialog(false);
+                  setImportFile(null);
+                }}
+                disabled={importing}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
