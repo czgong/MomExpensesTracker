@@ -921,25 +921,25 @@ select:focus {
   }
   
   @media (max-width: 768px) {
-    bottom: 100px; // Position above fixed collapsed sidebar
+    bottom: 24px;
     right: 20px;
-    width: 64px;
-    height: 64px;
-    font-size: 24px;
-    box-shadow: 0 8px 24px rgba($secondary-color, 0.4);
-    z-index: 150; // Below collapsed sidebar but above content
+    width: 60px;
+    height: 60px;
+    font-size: 22px;
+    box-shadow: 0 6px 20px rgba($secondary-color, 0.3);
+    z-index: 50;
     
     &:active {
-      transform: scale(0.9);
+      transform: scale(0.95);
     }
   }
   
   @media (max-width: 480px) {
-    bottom: 100px;
+    bottom: 20px;
     right: 16px;
-    width: 60px;
-    height: 60px;
-    font-size: 22px;
+    width: 56px;
+    height: 56px;
+    font-size: 20px;
   }
 }
 
@@ -2867,41 +2867,35 @@ select:focus {
   }
 }
 
-// ===== MOBILE-FIRST RESPONSIVE DESIGN =====
+// ===== SIMPLE MOBILE DESIGN =====
 
-/* Mobile-first approach with better UX */
+/* Simple mobile-first approach */
 @media (max-width: 1024px) {
   .main-layout {
     flex-direction: column;
-    position: relative;
     min-height: 100vh;
-    padding-bottom: 0; // Let content flow naturally
   }
   
-  /* Redesigned smooth timeline for mobile */
+  /* Clean mobile timeline */
   .timeline-sidebar {
     width: 100%;
     height: auto;
+    min-height: 100px;
     border-right: none;
     border-bottom: 1px solid rgba($primary-color, 0.15);
     background: white;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-    position: sticky;
-    top: 0;
-    z-index: 50;
     
     .timeline-nav {
-      padding: 16px 0 12px;
+      padding: 15px;
       
       .timeline-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 12px;
-        padding: 0 20px;
+        margin-bottom: 15px;
         
         h3 {
-          font-size: 0.9rem;
+          font-size: 1rem;
           margin: 0;
           font-weight: 700;
           color: $primary-color;
@@ -2912,202 +2906,75 @@ select:focus {
         }
         
         .current-month-btn {
-          font-size: 0.75rem;
-          padding: 10px 16px;
-          border-radius: 25px;
-          white-space: nowrap;
-          font-weight: 700;
-          touch-action: manipulation;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          min-height: 44px; // Better touch target
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 4px 16px rgba($secondary-color, 0.25);
-          
-          &:active {
-            transform: scale(0.92) translateY(2px);
-            box-shadow: 0 2px 8px rgba($secondary-color, 0.3);
-          }
-          
-          &:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba($secondary-color, 0.35);
-          }
+          font-size: 0.8rem;
+          padding: 8px 12px;
+          border-radius: 20px;
+          font-weight: 600;
+          background: $secondary-color;
+          color: white;
+          border: none;
+          cursor: pointer;
         }
       }
       
       .timeline-list {
         display: flex;
         overflow-x: auto;
-        overflow-y: hidden;
-        gap: 16px;
-        padding: 0 20px 12px;
-        scroll-behavior: smooth;
+        gap: 10px;
+        padding-bottom: 5px;
         -webkit-overflow-scrolling: touch;
-        scroll-snap-type: x mandatory; // Stronger snap behavior
         
-        /* Hide scrollbar but keep functionality */
-        scrollbar-width: none;
-        -ms-overflow-style: none;
+        /* Show scrollbar on mobile to indicate scrollability */
         &::-webkit-scrollbar {
-          display: none;
+          height: 4px;
         }
         
-        /* Add scroll indicators */
-        &::before {
-          content: '';
-          position: sticky;
-          left: 0;
-          width: 20px;
-          height: 100%;
-          background: linear-gradient(90deg, white 0%, transparent 100%);
-          pointer-events: none;
-          z-index: 1;
+        &::-webkit-scrollbar-track {
+          background: rgba($primary-color, 0.1);
+          border-radius: 2px;
         }
         
-        &::after {
-          content: '';
-          position: sticky;
-          right: 0;
-          width: 20px;
-          height: 100%;
-          background: linear-gradient(270deg, white 0%, transparent 100%);
-          pointer-events: none;
-          z-index: 1;
+        &::-webkit-scrollbar-thumb {
+          background: rgba($primary-color, 0.3);
+          border-radius: 2px;
         }
         
         .timeline-month {
-          min-width: 130px;
+          min-width: 110px;
           flex-shrink: 0;
-          background: rgba($background-color, 0.8);
-          border-radius: 20px;
-          padding: 16px 20px;
+          background: #f8f9fa;
+          border: 2px solid #e9ecef;
+          border-radius: 8px;
+          padding: 10px;
+          text-align: center;
           cursor: pointer;
-          touch-action: manipulation;
-          scroll-snap-align: center; // Center alignment for better UX
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          border: 2px solid rgba($primary-color, 0.1);
-          position: relative;
-          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-          
-          /* Enhanced touch feedback with haptic-like feel */
-          &:active {
-            transform: scale(0.94) translateY(2px);
-            transition: transform 0.15s ease;
-            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
-          }
-          
-          /* Add subtle animation on load */
-          animation: slideInFromRight 0.4s ease-out;
-          
-          /* Better touch area */
-          &::before {
-            content: '';
-            position: absolute;
-            top: -8px;
-            left: -8px;
-            right: -8px;
-            bottom: -8px;
-            border-radius: 24px;
-            background: transparent;
-          }
           
           &.active {
-            background: linear-gradient(135deg, $primary-color, $secondary-color);
+            background: $primary-color;
             color: white;
             border-color: $primary-color;
-            transform: translateY(-4px) scale(1.05);
-            box-shadow: 0 8px 28px rgba($primary-color, 0.4);
-            animation: pulse 2s infinite;
-            z-index: 2;
-            
-            .month-content {
-              .month-info {
-                .month-stats {
-                  color: rgba(255, 255, 255, 0.9);
-                  
-                  .expense-count {
-                    background: rgba(255, 255, 255, 0.25);
-                    color: white;
-                    border: 1px solid rgba(255, 255, 255, 0.3);
-                  }
-                  
-                  .expense-total {
-                    color: rgba(255, 255, 255, 0.95);
-                  }
-                }
-              }
-              
-              .month-indicator.has-data {
-                background: white;
-                box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
-              }
-            }
-          }
-          
-          &:not(.active):hover {
-            background: rgba($primary-color, 0.08);
-            border-color: rgba($primary-color, 0.2);
-            transform: translateY(-1px);
           }
           
           .month-content {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            
             .month-info {
-              flex: 1;
-              
               .month-name {
-                font-size: 0.85rem;
-                margin-bottom: 6px;
+                font-size: 0.8rem;
                 font-weight: 600;
-                line-height: 1.1;
-                color: inherit;
+                margin-bottom: 4px;
+                white-space: nowrap;
               }
               
               .month-stats {
                 font-size: 0.7rem;
-                color: $text-muted;
                 display: flex;
-                gap: 8px;
-                align-items: center;
-                flex-wrap: wrap;
+                justify-content: center;
+                gap: 5px;
                 
-                .expense-count {
-                  background: rgba($primary-color, 0.12);
-                  color: $primary-color;
-                  padding: 3px 8px;
-                  border-radius: 12px;
-                  font-weight: 700;
-                  font-size: 0.65rem;
-                  min-width: 24px;
-                  text-align: center;
-                  border: 1px solid rgba($primary-color, 0.2);
-                }
-                
+                .expense-count,
                 .expense-total {
-                  font-weight: 700;
-                  color: $text-color;
-                  font-size: 0.75rem;
+                  font-size: 0.65rem;
+                  font-weight: 500;
                 }
-              }
-            }
-            
-            .month-indicator {
-              width: 10px;
-              height: 10px;
-              border-radius: 50%;
-              background: #e2e8f0;
-              flex-shrink: 0;
-              transition: all 0.2s ease;
-              
-              &.has-data {
-                background: $secondary-color;
-                box-shadow: 0 0 0 3px rgba($secondary-color, 0.2);
-                transform: scale(1.1);
               }
             }
           }
@@ -3116,198 +2983,68 @@ select:focus {
     }
   }
   
-  /* Redesigned smooth bottom sheet sidebar */
+  /* Simple bottom sidebar for mobile */
   .right-sidebar {
     width: 100%;
     background: white;
     border-left: none;
     border-top: 1px solid rgba($primary-color, 0.15);
     order: 3;
-    position: relative;
-    overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
     
     &.collapsed {
-      height: 80px; // Increased height to ensure button visibility
-      min-height: 80px;
-      position: fixed; // Changed to fixed positioning
-      bottom: 0; // Stick to bottom
-      left: 0;
-      right: 0;
-      z-index: 200;
-      background: white;
-      border-top: 2px solid rgba($primary-color, 0.15);
-      box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.15);
-      // Add safe area support for devices with home indicators
-      padding-bottom: env(safe-area-inset-bottom, 0);
-      
-      .sidebar-header {
-        border-bottom: none;
-        padding: 12px 20px; // Adjusted padding for better fit
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: relative;
-        
-        /* Hide text when collapsed to save space */
-        h3, .sidebar-subtitle {
-          display: none;
-        }
-        
-        /* Add visual indicator when collapsed */
-        &::before {
-          content: 'Settings';
-          position: absolute;
-          left: 20px;
-          top: 50%;
-          transform: translateY(-50%);
-          font-size: 0.9rem;
-          font-weight: 600;
-          color: $primary-color;
-        }
-        
-        /* Add drag handle indicator */
-        &::after {
-          content: '';
-          position: absolute;
-          top: 12px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 40px;
-          height: 4px;
-          background: rgba($text-muted, 0.4);
-          border-radius: 2px;
-        }
-      }
-      
       .sidebar-content {
-        opacity: 0;
-        transform: translateY(20px);
-        pointer-events: none;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        height: 0;
-        overflow: hidden;
-      }
-      
-      .sidebar-toggle {
-        position: absolute;
-        right: 20px;
-        top: 50%;
-        transform: translateY(-50%);
-        // Ensure button is always visible and accessible
-        min-height: 50px;
-        min-width: 50px;
-        border-radius: 50%;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      
-      .sidebar-toggle {
-        .toggle-icon {
-          transform: rotate(180deg);
-        }
-        
-        .toggle-text {
-          opacity: 0.8;
-        }
+        display: none;
       }
     }
     
     .sidebar-header {
-      padding: 20px;
+      padding: 15px 20px;
+      background: white;
       border-bottom: 1px solid rgba($primary-color, 0.08);
-      background: linear-gradient(135deg, rgba($background-color, 0.95), rgba($primary-color, 0.02));
-      backdrop-filter: blur(20px);
-      position: relative;
-      cursor: pointer;
-      touch-action: manipulation;
-      user-select: none;
-      
-      /* Add visual drag handle */
-      &::before {
-        content: '';
-        position: absolute;
-        top: 8px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 40px;
-        height: 4px;
-        background: rgba($text-muted, 0.3);
-        border-radius: 2px;
-      }
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       
       h3 {
-        font-size: 1.1rem;
-        margin: 8px 0 4px 0;
+        font-size: 1rem;
+        margin: 0;
         font-weight: 700;
         color: $primary-color;
-        pointer-events: none;
       }
       
       .sidebar-subtitle {
         font-size: 0.8rem;
-        margin-bottom: 0;
+        margin: 0;
         color: $text-muted;
-        pointer-events: none;
       }
       
       .sidebar-toggle {
-        position: absolute;
-        right: 20px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: linear-gradient(135deg, $secondary-color, $accent-color-2);
+        background: $secondary-color;
         color: white;
         border: none;
-        padding: 12px 18px;
-        border-radius: 25px;
+        padding: 8px 16px;
+        border-radius: 20px;
         font-size: 0.8rem;
-        font-weight: 700;
-        min-height: 46px;
-        box-shadow: 0 4px 16px rgba($secondary-color, 0.3);
+        font-weight: 600;
         cursor: pointer;
-        touch-action: manipulation;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         
         .toggle-icon {
-          font-size: 0.9rem;
-          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          font-size: 0.8rem;
         }
         
         .toggle-text {
           font-size: 0.8rem;
-          font-weight: 700;
-          transition: opacity 0.2s ease;
-        }
-        
-        &:active {
-          transform: translateY(-50%) scale(0.95);
-          box-shadow: 0 2px 8px rgba($secondary-color, 0.4);
-        }
-        
-        &:hover {
-          box-shadow: 0 6px 20px rgba($secondary-color, 0.4);
-          transform: translateY(-50%) translateY(-1px);
         }
       }
     }
     
     .sidebar-content {
-      padding: 24px 20px 100px; // Extra bottom padding to prevent cutoff
-      transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
-      max-height: 75vh; // Increased max height
+      padding: 20px;
+      max-height: 300px;
       overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      
-      /* Ensure content is never cut off */
-      padding-bottom: env(safe-area-inset-bottom, 100px);
       
       .sidebar-section {
         margin-bottom: 20px;
@@ -3537,7 +3274,7 @@ select:focus {
 
 @media (max-width: 768px) {
   .main-layout {
-    padding-bottom: 90px; // Ensure space for fixed collapsed sidebar
+    padding-bottom: 0;
   }
   
   .app-header {

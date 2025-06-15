@@ -44,30 +44,11 @@ function App() {
   
   // Sidebar collapse state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  
 
   // Add a new state to store the original percentages before editing
 const [originalParticipants, setOriginalParticipants] = useState([]);
 
-// Auto-scroll to active month in timeline
-useEffect(() => {
-  if (activeMonthTab) {
-    const timelineList = document.querySelector('.timeline-list');
-    const activeMonth = document.querySelector('.timeline-month.active');
-    
-    if (timelineList && activeMonth) {
-      // Calculate the scroll position to center the active month
-      const containerWidth = timelineList.clientWidth;
-      const elementLeft = activeMonth.offsetLeft;
-      const elementWidth = activeMonth.clientWidth;
-      const scrollLeft = elementLeft - (containerWidth / 2) + (elementWidth / 2);
-      
-      timelineList.scrollTo({
-        left: scrollLeft,
-        behavior: 'smooth'
-      });
-    }
-  }
-}, [activeMonthTab]);
 
   // Function to format a percentage to one decimal place
   const formatPercentage = (value) => {
@@ -1021,7 +1002,6 @@ const cancelPercentEdit = () => {
                             </div>
                           )}
                         </div>
-                        <div className={`month-indicator ${expenseCount > 0 ? 'has-data' : ''}`}></div>
                       </div>
                     </div>
                   );
@@ -1418,21 +1398,16 @@ const cancelPercentEdit = () => {
         
         {/* Right Sidebar */}
         <div className={`right-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
-          <div 
-            className="sidebar-header"
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          >
-            <h3>Settings</h3>
-            <div className="sidebar-subtitle">Configure your expenses</div>
+          <div className="sidebar-header">
+            <div>
+              <h3>Settings</h3>
+              <div className="sidebar-subtitle">Configure your expenses</div>
+            </div>
             <button 
               className="sidebar-toggle"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsSidebarCollapsed(!isSidebarCollapsed);
-              }}
-              data-mobile-text={isSidebarCollapsed ? 'Show' : 'Hide'}
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             >
-              <span className="toggle-icon">{isSidebarCollapsed ? '▶' : '◀'}</span>
+              <span className="toggle-icon">{isSidebarCollapsed ? '<' : '>'}</span>
               <span className="toggle-text">{isSidebarCollapsed ? 'Show' : 'Hide'}</span>
             </button>
           </div>
