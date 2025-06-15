@@ -71,10 +71,11 @@ app.get('/api/data', async (req, res) => {
       .from('people')
       .select('id, name');
 
-    // Then get all expenses
+    // Then get all expenses with created_at timestamp
     const { data: expenses, error } = await supabase
       .from('expenses')
-      .select('*');
+      .select('*')
+      .order('created_at', { ascending: false }); // Order by creation time, newest first
 
     if (error) {
       console.error('Supabase GET error:', error);
@@ -100,7 +101,13 @@ app.post('/api/data', async (req, res) => {
 
   const { data, error } = await supabase
     .from('expenses')
-    .insert([{ cost, person_id, date, comment }])
+    .insert([{ 
+      cost, 
+      person_id, 
+      date, 
+      comment,
+      created_at: new Date().toISOString() // Explicitly set creation timestamp
+    }])
     .select('*, person:person_id(name)');  // Added person data to response
 
   if (error) {

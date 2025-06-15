@@ -12,6 +12,8 @@ function App() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState({}); // Track payment status by settlement ID
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [newExpense, setNewExpense] = useState({
@@ -215,6 +217,8 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   // Update fetchExpenses to handle the new data structure
   const fetchExpenses = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const response = await fetch(`${API_URL}/api/data`);
       if (!response.ok) {
         throw new Error('Failed to fetch expenses');
@@ -229,10 +233,14 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
         person_id: expense.person_id,
         purchasedBy: expense.person?.name || 'Unknown', // Add purchasedBy for backward compatibility
         date: expense.date,
-        comment: expense.comment
+        comment: expense.comment,
+        created_at: expense.created_at || new Date().toISOString() // Add creation timestamp
       }));
       
-      setExpenses(processedExpenses);
+      // Sort by expense date (newest first)
+      const sortedExpenses = processedExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+      
+      setExpenses(sortedExpenses);
 
       // Set default active tab to most recent month if we have expenses
       if (processedExpenses.length > 0) {
@@ -243,7 +251,10 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       }
     } catch (error) {
       console.error('Error fetching expenses:', error);
+      setError('Failed to load expenses. Please try again.');
       setExpenses([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -293,7 +304,10 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     });
     
     // Convert the object into an array and sort by date (most recent first)
-    return Object.values(monthsMap).sort((a, b) => {
+    return Object.values(monthsMap).map(month => ({
+      ...month,
+      expenses: month.expenses.sort((a, b) => new Date(b.date) - new Date(a.date))
+    })).sort((a, b) => {
       return b.key.localeCompare(a.key);
     });
   };
@@ -330,6 +344,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
           purchasedBy: exp.person?.name || 'Unknown',
           date: exp.date,
           comment: exp.comment,
+          created_at: exp.created_at || new Date().toISOString(),
           isEditing: true
         }));
         
@@ -377,7 +392,8 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
           person_id: exp.person_id,
           purchasedBy: exp.person?.name || 'Unknown',
           date: exp.date,
-          comment: exp.comment
+          comment: exp.comment,
+          created_at: exp.created_at || new Date().toISOString()
         }));
         
         setExpenses(prev => [...prev, ...newExpensesProcessed]);
@@ -949,6 +965,7 @@ const cancelPercentEdit = () => {
             <div className="timeline-nav">
               <div className="timeline-header">
                 <h3>Timeline</h3>
+                <div className="timeline-subtitle">Browse expenses by month</div>
                 <button 
                   className="current-month-btn"
                   onClick={() => {
@@ -957,7 +974,7 @@ const cancelPercentEdit = () => {
                     if (currentMonthTab) setActiveMonthTab(currentMonth);
                   }}
                 >
-                  Now
+                  📅 Current Month
                 </button>
               </div>
               
@@ -970,20 +987,20 @@ const cancelPercentEdit = () => {
                   return (
                     <div
                       key={month.key}
-                      className={`timeline-month ${isActive ? 'active' : ''} ${expenseCount > 0 ? 'has-data' : ''}`}
+                      className={`timeline-month ${isActive ? 'active' : ''}`}
                       onClick={() => setActiveMonthTab(month.key)}
                     >
-                      <div className="month-info">
-                        <div className="month-name">{month.name}</div>
-                        {expenseCount > 0 && (
-                          <div className="month-stats">
-                            <span className="expense-count">{expenseCount}</span>
-                            <span className="expense-total">${totalAmount.toFixed(0)}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="month-indicator">
-                        {expenseCount > 0 && <div className="activity-dot"></div>}
+                      <div className="month-content">
+                        <div className="month-info">
+                          <div className="month-name">{month.name}</div>
+                          {expenseCount > 0 && (
+                            <div className="month-stats">
+                              <span className="expense-count">{expenseCount}</span>
+                              <span className="expense-total">${totalAmount.toFixed(0)}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className={`month-indicator ${expenseCount > 0 ? 'has-data' : ''}`}></div>
                       </div>
                     </div>
                   );
@@ -1018,7 +1035,21 @@ const cancelPercentEdit = () => {
             </div>
           </div>
         
-        {isCardView ? (
+        {error && (
+          <div className="error-message">
+            {error}
+            <button onClick={() => { setError(null); fetchExpenses(); }} style={{marginLeft: '10px', fontSize: '0.8rem'}}>
+              Retry
+            </button>
+          </div>
+        )}
+        
+        {loading ? (
+          <div className="loading-state" style={{textAlign: 'center', padding: '40px'}}>
+            <div className="loading-spinner" style={{margin: '0 auto 20px'}}></div>
+            <p>Loading expenses...</p>
+          </div>
+        ) : isCardView ? (
           <div className="expenses-grid">
           {activeMonthExpenses.length === 0 ? (
             <div className="empty-state">
@@ -1041,6 +1072,8 @@ const cancelPercentEdit = () => {
                           value={expense.cost}
                           onChange={(e) => handleEditChange(index, 'cost', e.target.value)}
                           className="cost-input"
+                          aria-label="Expense cost"
+                          placeholder="0.00"
                         />
                       ) : (
                         <span className="cost-display">${expense.cost}</span>
@@ -1077,6 +1110,7 @@ const cancelPercentEdit = () => {
                           value={expense.person_id}
                           onChange={(e) => handleEditChange(index, 'person_id', e.target.value)}
                           className="person-select"
+                          aria-label="Person who purchased"
                         >
                           {persons.map((person) => (
                             <option key={person.id} value={person.id}>
@@ -1097,9 +1131,10 @@ const cancelPercentEdit = () => {
                           value={expense.date}
                           onChange={(e) => handleEditChange(index, 'date', e.target.value)}
                           className="date-input"
+                          aria-label="Expense date"
                         />
                       ) : (
-                        <span className="date-display">{new Date(expense.date).toLocaleDateString()}</span>
+                        <span className="date-display">{expense.date}</span>
                       )}
                     </div>
                     
@@ -1112,11 +1147,21 @@ const cancelPercentEdit = () => {
                           onChange={(e) => handleEditChange(index, 'comment', e.target.value)}
                           className="comment-input"
                           placeholder="Add a note..."
+                          aria-label="Expense comment"
                         />
                       ) : (
                         <span className="comment-text">{expense.comment}</span>
                       )}
                     </div>
+                    
+                    {expense.created_at && (
+                      <div className="field-group">
+                        <label>Added</label>
+                        <span className="timestamp-display">
+                          {formatTimestamp(expense.created_at)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1132,13 +1177,14 @@ const cancelPercentEdit = () => {
                   <th>Purchased By</th>
                   <th>Date</th>
                   <th>Comment</th>
+                  <th>Added</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {activeMonthExpenses.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="empty-cell">
+                    <td colSpan="6" className="empty-cell">
                       <div className="table-empty-state">
                         <span className="empty-icon">💳</span>
                         <span>No expenses yet</span>
@@ -1190,7 +1236,7 @@ const cancelPercentEdit = () => {
                               className="table-input date-input-table"
                             />
                           ) : (
-                            <span className="date-display-table">{new Date(expense.date).toLocaleDateString()}</span>
+                            <span className="date-display-table">{expense.date}</span>
                           )}
                         </td>
                         <td>
@@ -1204,6 +1250,13 @@ const cancelPercentEdit = () => {
                             />
                           ) : (
                             <span className="comment-text-table">{expense.comment}</span>
+                          )}
+                        </td>
+                        <td className="timestamp-cell">
+                          {expense.created_at && (
+                            <span className="timestamp-display-table">
+                              {formatTimestamp(expense.created_at)}
+                            </span>
                           )}
                         </td>
                         <td className="actions-cell">
@@ -1346,11 +1399,14 @@ const cancelPercentEdit = () => {
         <div className={`right-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
           <div className="sidebar-header">
             <h3>Settings</h3>
+            <div className="sidebar-subtitle">Configure your expenses</div>
             <button 
               className="sidebar-toggle"
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              data-mobile-text={isSidebarCollapsed ? 'Show' : 'Hide'}
             >
-              {isSidebarCollapsed ? '→' : '←'}
+              <span className="toggle-icon">{isSidebarCollapsed ? '▶' : '◀'}</span>
+              <span className="toggle-text">{isSidebarCollapsed ? 'Show' : 'Hide'}</span>
             </button>
           </div>
           
@@ -1358,33 +1414,37 @@ const cancelPercentEdit = () => {
             <div className="sidebar-content">
               {/* CSV Import Section */}
               <div className="sidebar-section">
-                <h4>Import Data</h4>
+                <div className="section-title">
+                  <h4>Import Data</h4>
+                </div>
                 <button 
                   className="sidebar-button import-btn" 
                   onClick={() => setShowImportDialog(true)}
                 >
-                  📥 Import CSV
+                  Import CSV File
                 </button>
               </div>
               
               {/* Participants Section */}
               <div className="sidebar-section participants-sidebar">
-                <div className="section-header">
-                  <h4>Sharing Percentages</h4>
-                  {isAnyParticipantEditing ? (
-                    <div className="edit-actions">
-                      <button onClick={savePercentages} className="save-button" title="Save changes">
-                        ✓
+                <div className="section-title">
+                  <div className="section-header">
+                    <h4>Sharing Percentages</h4>
+                    {isAnyParticipantEditing ? (
+                      <div className="edit-actions">
+                        <button onClick={savePercentages} className="save-button" title="Save changes">
+                          ✓
+                        </button>
+                        <button onClick={cancelPercentEdit} className="cancel-button" title="Cancel changes">
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => toggleAllPercentEdit(true)} className="edit-button" title="Edit percentages">
+                        ✏️ Edit
                       </button>
-                      <button onClick={cancelPercentEdit} className="cancel-button" title="Cancel changes">
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <button onClick={() => toggleAllPercentEdit(true)} className="edit-button" title="Edit percentages">
-                      ✏️
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
                 
                 <p className="sidebar-info">
