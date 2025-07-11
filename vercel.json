@@ -1,19 +1,4 @@
 {
-  "functions": {
-    "api/index.js": {
-      "runtime": "@vercel/node@3.2.22"
-    }
-  },
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
-  ],
   "build": {
     "env": {
       "REACT_APP_API_URL": "https://mom-expenses-tracker-5uthzfi3a-czgongs-projects.vercel.app"
