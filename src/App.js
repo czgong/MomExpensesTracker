@@ -492,19 +492,39 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   const deleteExpense = (index) => {
     const expenseToDelete = expenses[index];
     const expenseId = expenseToDelete.id;
+    
     if (!expenseId || isNaN(expenseId)) {
       console.error("Invalid expense id. Cannot delete:", expenseToDelete);
       return;
     }
+    
+    // Show confirmation dialog
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete this expense?\n\n` +
+      `Amount: $${expenseToDelete.cost}\n` +
+      `Purchased by: ${expenseToDelete.purchasedBy}\n` +
+      `Date: ${expenseToDelete.date}\n` +
+      `Comment: ${expenseToDelete.comment}\n\n` +
+      `This action cannot be undone.`
+    );
+    
+    if (!confirmDelete) {
+      return; // User cancelled deletion
+    }
+    
     fetch(`${API_URL}/api/data/${expenseId}`, { method: 'DELETE' })
       .then(response => {
         if (response.ok) {
           setExpenses(prev => prev.filter(exp => exp.id !== expenseId));
         } else {
           console.error('Failed to delete expense on server.');
+          alert('Failed to delete expense. Please try again.');
         }
       })
-      .catch(error => console.error('Error deleting expense:', error));
+      .catch(error => {
+        console.error('Error deleting expense:', error);
+        alert('Error deleting expense. Please try again.');
+      });
   };
   
   // Calculate payment settlements - who owes whom
