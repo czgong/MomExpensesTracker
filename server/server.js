@@ -1,6 +1,7 @@
 // server/server.js
 const { createClient } = require('@supabase/supabase-js');
 const express = require('express');
+const cors = require('cors');
 const multer = require('multer');
 
 // Simple CSV line parser that handles quoted fields
@@ -42,27 +43,19 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const app = express(); // Initialize Express app
 const PORT = process.env.PORT || 5001; // Define PORT
 
-// CORS middleware to allow requests from React app
-app.use((req, res, next) => {
-  const allowedOrigins = [
+// CORS configuration
+const corsOptions = {
+  origin: [
     'http://localhost:3000',
     'https://mom-expenses-tracker.vercel.app',
     'https://mom-expenses-tracker-czgongs-projects.vercel.app'
-  ];
-  
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
-  } else {
-    next();
-  }
-});
+  ],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept'],
+  credentials: false
+};
+
+app.use(cors(corsOptions));
 
 // Middleware to parse JSON bodies
 app.use(express.json());
