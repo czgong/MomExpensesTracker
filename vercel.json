@@ -1,7 +1,22 @@
 {
+  "functions": {
+    "api/index.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ],
   "build": {
     "env": {
-      "REACT_APP_API_URL": "https://momexpensestracker-production.up.railway.app"
+      "REACT_APP_API_URL": "https://mom-expenses-tracker-5uthzfi3a-czgongs-projects.vercel.app"
     }
   }
 }
