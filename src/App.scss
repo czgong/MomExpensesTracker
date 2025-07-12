@@ -3980,7 +3980,7 @@ select:focus {
     .cost-display {
       font-size: 1.4rem;
       font-weight: 700;
-      color: #28a745;
+      color: $primary-color;
       line-height: 1.2;
     }
     
@@ -4111,65 +4111,11 @@ select:focus {
     margin-top: 8px;
     border-top: 1px solid #e9ecef;
     
-    .mobile-btn {
+    // Inherit card button styles, just adjust layout
+    button {
       flex: 1;
-      padding: 10px 14px;
-      border: none;
-      border-radius: 12px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
       min-width: 44px;
       min-height: 44px;
-      
-      &.edit-btn {
-        background: rgba(#6c5ce7, 0.1);
-        color: #6c5ce7;
-        border: 1px solid rgba(#6c5ce7, 0.2);
-        
-        &:hover {
-          background: #6c5ce7;
-          color: white;
-        }
-      }
-      
-      &.delete-btn {
-        background: rgba(#f44336, 0.1);
-        color: #f44336;
-        border: 1px solid rgba(#f44336, 0.2);
-        
-        &:hover {
-          background: #f44336;
-          color: white;
-        }
-      }
-      
-      &.save-btn {
-        background: rgba(#28a745, 0.1);
-        color: #28a745;
-        border: 1px solid rgba(#28a745, 0.2);
-        
-        &:hover {
-          background: #28a745;
-          color: white;
-        }
-      }
-      
-      &.cancel-btn {
-        background: rgba(#6c757d, 0.1);
-        color: #6c757d;
-        border: 1px solid rgba(#6c757d, 0.2);
-        
-        &:hover {
-          background: #6c757d;
-          color: white;
-        }
-      }
     }
   }
 }

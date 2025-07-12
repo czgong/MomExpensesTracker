@@ -1317,19 +1317,19 @@ const cancelPercentEdit = () => {
                         <div className="mobile-actions">
                           {expense.isEditing ? (
                             <>
-                              <button onClick={() => saveExpense(index)} className="mobile-btn save-btn">
-                                <FaCheck /> Save
+                              <button onClick={() => saveExpense(index)} className="save-btn">
+                                <FaCheck />
                               </button>
-                              <button onClick={() => toggleEdit(index, false)} className="mobile-btn cancel-btn">
-                                <FaTimes /> Cancel
+                              <button onClick={() => toggleEdit(index, false)} className="cancel-btn">
+                                <FaTimes />
                               </button>
                             </>
                           ) : (
                             <>
-                              <button onClick={() => toggleEdit(index, true)} className="mobile-btn edit-btn">
+                              <button onClick={() => toggleEdit(index, true)} className="edit-btn">
                                 Edit
                               </button>
-                              <button onClick={() => deleteExpense(index)} className="mobile-btn delete-btn">
+                              <button onClick={() => deleteExpense(index)} className="delete-btn">
                                 Delete
                               </button>
                             </>
