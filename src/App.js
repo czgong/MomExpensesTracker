@@ -45,14 +45,37 @@ function App() {
   // Sidebar collapse state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
+  // Mobile responsive states
+  const [isMobile, setIsMobile] = useState(false);
+  const [expandedRowId, setExpandedRowId] = useState(null);
 
   // Add a new state to store the original percentages before editing
 const [originalParticipants, setOriginalParticipants] = useState([]);
 
+  // Mobile breakpoint detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Function to format a percentage to one decimal place
   const formatPercentage = (value) => {
     return parseFloat(parseFloat(value).toFixed(1));
+  };
+
+  // Mobile row expansion handlers
+  const toggleRowExpansion = (expenseId) => {
+    setExpandedRowId(expandedRowId === expenseId ? null : expenseId);
+  };
+
+  const isRowExpanded = (expenseId) => {
+    return expandedRowId === expenseId;
   };
 
   // Function to fix rounding issues to ensure percentages sum to exactly 100
@@ -1189,7 +1212,138 @@ const cancelPercentEdit = () => {
             })
           )}
         </div>
+        ) : isMobile ? (
+          // Mobile Progressive Disclosure Layout
+          <div className="expenses-mobile-view">
+            {activeMonthExpenses.length === 0 ? (
+              <div className="mobile-empty-state">
+                <span className="empty-icon">💳</span>
+                <span>No expenses yet</span>
+              </div>
+            ) : (
+              activeMonthExpenses.map((expense, cardIndex) => {
+                // Find the index in the original expenses array
+                const index = expenses.findIndex(e => e.id === expense.id);
+                const isExpanded = isRowExpanded(expense.id);
+                
+                return (
+                  <div 
+                    key={expense.id || index} 
+                    className={`mobile-expense-row ${expense.isEditing ? 'editing' : ''} ${isExpanded ? 'expanded' : ''}`}
+                  >
+                    {/* Primary Row - Always Visible */}
+                    <div 
+                      className="mobile-expense-primary"
+                      onClick={() => !expense.isEditing && toggleRowExpansion(expense.id)}
+                    >
+                      <div className="mobile-expense-main">
+                        <div className="mobile-expense-left">
+                          <div className="mobile-expense-cost">
+                            {expense.isEditing ? (
+                              <input
+                                type="number"
+                                value={expense.cost}
+                                onChange={(e) => handleEditChange(index, 'cost', e.target.value)}
+                                className="mobile-input cost-input"
+                              />
+                            ) : (
+                              <span className="cost-display">${expense.cost}</span>
+                            )}
+                          </div>
+                          <div className="mobile-expense-date">
+                            {expense.isEditing ? (
+                              <input
+                                type="date"
+                                value={expense.date}
+                                onChange={(e) => handleEditChange(index, 'date', e.target.value)}
+                                className="mobile-input date-input"
+                              />
+                            ) : (
+                              <span className="date-display">{expense.date}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mobile-expense-person">
+                          {expense.isEditing ? (
+                            <select
+                              value={expense.person_id}
+                              onChange={(e) => handleEditChange(index, 'person_id', e.target.value)}
+                              className="mobile-select"
+                            >
+                              {persons.map((person) => (
+                                <option key={person.id} value={person.id}>
+                                  {person.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="person-name">{expense.purchasedBy}</span>
+                          )}
+                        </div>
+                      </div>
+                      {!expense.isEditing && (
+                        <div className="mobile-expand-indicator">
+                          <span className={`chevron ${isExpanded ? 'expanded' : ''}`}>▼</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Expanded Details - Only Visible When Expanded */}
+                    {(isExpanded || expense.isEditing) && (
+                      <div className="mobile-expense-details">
+                        <div className="mobile-detail-row">
+                          <span className="detail-label">Comment:</span>
+                          {expense.isEditing ? (
+                            <input
+                              type="text"
+                              value={expense.comment}
+                              onChange={(e) => handleEditChange(index, 'comment', e.target.value)}
+                              className="mobile-input comment-input"
+                              placeholder="Add a note..."
+                            />
+                          ) : (
+                            <span className="detail-value">{expense.comment}</span>
+                          )}
+                        </div>
+
+                        {expense.created_at && (
+                          <div className="mobile-detail-row">
+                            <span className="detail-label">Added:</span>
+                            <span className="detail-value">{formatTimestamp(expense.created_at)}</span>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="mobile-actions">
+                          {expense.isEditing ? (
+                            <>
+                              <button onClick={() => saveExpense(index)} className="mobile-btn save-btn">
+                                <FaCheck /> Save
+                              </button>
+                              <button onClick={() => toggleEdit(index, false)} className="mobile-btn cancel-btn">
+                                <FaTimes /> Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button onClick={() => toggleEdit(index, true)} className="mobile-btn edit-btn">
+                                Edit
+                              </button>
+                              <button onClick={() => deleteExpense(index)} className="mobile-btn delete-btn">
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         ) : (
+          // Desktop Table Layout
           <div className="expenses-table-view">
             <table className="expenses-table modern">
               <thead>
