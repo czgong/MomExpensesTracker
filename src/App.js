@@ -17,10 +17,10 @@ function App() {
   const [paymentStatus, setPaymentStatus] = useState({}); // Track payment status by settlement ID
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [newExpense, setNewExpense] = useState({
-    cost: 0,
+    cost: '',
     person_id: null,
     date: new Date().toISOString().split('T')[0],
-    comment: "New expense",
+    comment: '',
   });
   const [activeMonthTab, setActiveMonthTab] = useState(null);
   
@@ -48,6 +48,12 @@ function App() {
   // Mobile responsive states
   const [isMobile, setIsMobile] = useState(false);
   const [expandedRowId, setExpandedRowId] = useState(null);
+  const [savingExpenses, setSavingExpenses] = useState({});
+  const [showMobileTimeline, setShowMobileTimeline] = useState(false);
+  
+  // Delete confirmation modal states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [expenseToDelete, setExpenseToDelete] = useState(null);
 
   // Add a new state to store the original percentages before editing
 const [originalParticipants, setOriginalParticipants] = useState([]);
@@ -55,14 +61,26 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   // Mobile breakpoint detection
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
+      const wasMobile = isMobile;
+      const nowMobile = window.innerWidth <= 768;
+      setIsMobile(nowMobile);
+      
+      // Clear expansion state when switching between mobile and desktop
+      if (wasMobile !== nowMobile) {
+        setExpandedRowId(null);
+        // Close mobile timeline sheet when switching to desktop
+        if (!nowMobile) {
+          setShowMobileTimeline(false);
+          document.body.style.overflow = '';
+        }
+      }
     };
     
     checkMobile();
     window.addEventListener('resize', checkMobile);
     
     return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  }, [isMobile]);
 
   // Function to format a percentage to one decimal place
   const formatPercentage = (value) => {
@@ -71,11 +89,35 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
 
   // Mobile row expansion handlers
   const toggleRowExpansion = (expenseId) => {
+    // Prevent expansion if any expense is in edit mode
+    const anyEditing = expenses.some(expense => expense.isEditing);
+    if (anyEditing) return;
+    
     setExpandedRowId(expandedRowId === expenseId ? null : expenseId);
   };
 
   const isRowExpanded = (expenseId) => {
     return expandedRowId === expenseId;
+  };
+
+  // Mobile timeline handlers
+  const toggleMobileTimeline = () => {
+    const newValue = !showMobileTimeline;
+    setShowMobileTimeline(newValue);
+    
+    // Prevent body scroll when sheet is open
+    if (newValue) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+  };
+
+  const handleMobileMonthSelect = (monthKey) => {
+    setActiveMonthTab(monthKey);
+    setShowMobileTimeline(false);
+    // Restore body scroll
+    document.body.style.overflow = '';
   };
 
   // Function to fix rounding issues to ensure percentages sum to exactly 100
@@ -99,10 +141,8 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   // Fetch persons from the server
   const fetchPersons = async () => {
     try {
-      console.log('Fetching persons...');
       const response = await fetch(`${API_URL}/api/persons`);
       const data = await response.json();
-      console.log('Persons response:', data);
       
       // If server response indicates error, handle it appropriately
       if (!response.ok) {
@@ -110,7 +150,6 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       }
 
       // Set persons state with the data
-      console.log('Setting persons state:', data);
       setPersons(data);
       
       // Sync participants with persons (will be month-specific later when activeMonthTab is set)
@@ -183,8 +222,6 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       if (!response.ok) {
         throw new Error('Failed to save monthly shares');
       }
-      
-      console.log(`Shares saved for month ${monthKey}`);
     } catch (error) {
       console.error('Error saving monthly shares:', error);
       alert('Failed to save percentage shares. Please try again.');
@@ -232,7 +269,6 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       fixRoundingIssues(newParticipants);
     }
     
-    console.log(`Synchronized participants for month ${targetMonthKey}:`, newParticipants);
     setParticipants(newParticipants);
     
     // Clear any editing states
@@ -388,13 +424,16 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   };
 
   const handleAddExpense = () => {
-    // Validate that we have a person_id before submitting
+    // Validate required fields before submitting
     if (!newExpense.person_id) {
       alert("Please select a person for this expense.");
       return;
     }
     
-    console.log("Adding expense with data:", newExpense);
+    if (!newExpense.cost || parseFloat(newExpense.cost) <= 0) {
+      alert("Please enter a valid cost amount.");
+      return;
+    }
     
     fetch(`${API_URL}/api/data`, {
       method: 'POST',
@@ -408,7 +447,6 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
         return response.json();
       })
       .then((result) => {
-        console.log("Server response:", result);
         const newExpenses = Array.isArray(result) ? result : [result];
         
         const newExpensesProcessed = newExpenses.map(exp => ({
@@ -422,6 +460,15 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
         }));
         
         setExpenses(prev => [...prev, ...newExpensesProcessed]);
+        
+        // Reset form for next expense
+        setNewExpense({
+          cost: '',
+          person_id: null,
+          date: new Date().toISOString().split('T')[0],
+          comment: '',
+        });
+        
         setShowAddDialog(false);
 
         // Set active tab to the month of the new expense
@@ -461,6 +508,11 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       const updated = [...prev];
       updated[index] = { ...updated[index], isEditing: editing };
       
+      // Clear mobile expansion state when entering edit mode
+      if (editing) {
+        setExpandedRowId(null);
+      }
+      
       // If canceling edit, revert to original data by re-fetching
       if (!editing) {
         fetchExpenses();
@@ -476,6 +528,9 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       console.error("Expense does not have an id. Cannot update:", expenseToUpdate);
       return;
     }
+    
+    // Set loading state for this specific expense
+    setSavingExpenses(prev => ({ ...prev, [expenseToUpdate.id]: true }));
     
     // Prepare data for API call
     const updateData = {
@@ -505,7 +560,15 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
           console.error("Error updating expense:", result.error);
         }
       })
-      .catch(error => console.error("Error updating expense:", error));
+      .catch(error => console.error("Error updating expense:", error))
+      .finally(() => {
+        // Clear loading state
+        setSavingExpenses(prev => {
+          const updated = { ...prev };
+          delete updated[expenseToUpdate.id];
+          return updated;
+        });
+      });
   };
 
   const saveExpense = (index) => {
@@ -513,32 +576,29 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   };
 
   const deleteExpense = (index) => {
-    const expenseToDelete = expenses[index];
-    const expenseId = expenseToDelete.id;
+    const expenseData = expenses[index];
     
-    if (!expenseId || isNaN(expenseId)) {
-      console.error("Invalid expense id. Cannot delete:", expenseToDelete);
+    if (!expenseData.id || isNaN(expenseData.id)) {
+      console.error("Invalid expense id. Cannot delete:", expenseData);
       return;
     }
     
-    // Show confirmation dialog
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete this expense?\n\n` +
-      `Amount: $${expenseToDelete.cost}\n` +
-      `Purchased by: ${expenseToDelete.purchasedBy}\n` +
-      `Date: ${expenseToDelete.date}\n` +
-      `Comment: ${expenseToDelete.comment}\n\n` +
-      `This action cannot be undone.`
-    );
+    // Show custom confirmation modal
+    setExpenseToDelete({ ...expenseData, index });
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteExpense = () => {
+    if (!expenseToDelete) return;
     
-    if (!confirmDelete) {
-      return; // User cancelled deletion
-    }
+    const expenseId = expenseToDelete.id;
     
     fetch(`${API_URL}/api/data/${expenseId}`, { method: 'DELETE' })
       .then(response => {
         if (response.ok) {
           setExpenses(prev => prev.filter(exp => exp.id !== expenseId));
+          setShowDeleteConfirm(false);
+          setExpenseToDelete(null);
         } else {
           console.error('Failed to delete expense on server.');
           alert('Failed to delete expense. Please try again.');
@@ -548,6 +608,11 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
         console.error('Error deleting expense:', error);
         alert('Error deleting expense. Please try again.');
       });
+  };
+
+  const cancelDeleteExpense = () => {
+    setShowDeleteConfirm(false);
+    setExpenseToDelete(null);
   };
   
   // Calculate payment settlements - who owes whom
@@ -604,8 +669,6 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     
     const totalMonthlyExpenses = monthExpenses.reduce((sum, expense) => sum + parseFloat(expense.cost || 0), 0);
     
-    console.log('Calculating balances with participants:', participants.map(p => `${p.name}: ${p.percentShare}%`));
-    console.log('Total monthly expenses:', totalMonthlyExpenses);
     
     const paid = {};
     const owes = {};
@@ -717,11 +780,6 @@ const toggleAllPercentEdit = (editing) => {
     setOriginalParticipants(JSON.parse(JSON.stringify(participants)));
     setNeedsValidation(false);
   }
-};
-  // Compatibility function for any remaining references to togglePercentEdit
-const togglePercentEdit = (id) => {
-  console.warn("togglePercentEdit is deprecated. Use toggleAllPercentEdit instead.");
-  toggleAllPercentEdit(true);
 };
 
   // Handle percentage change in edit mode
@@ -1004,55 +1062,143 @@ const cancelPercentEdit = () => {
       </header>
       
       <div className="main-layout">
-        {/* Left Timeline Sidebar */}
-        <div className="timeline-sidebar">
-          {monthTabs.length > 0 && (
-            <div className="timeline-nav">
-              <div className="timeline-header">
-                <h3>Timeline</h3>
-                <div className="timeline-subtitle">Browse expenses by month</div>
+        {/* Timeline Navigation - Responsive */}
+        {isMobile ? (
+          // Mobile Timeline - Bottom Sheet Style
+          <>
+            {monthTabs.length > 0 && (
+              <div className="mobile-timeline-header">
                 <button 
-                  className="current-month-btn"
-                  onClick={() => {
-                    const currentMonth = new Date().toISOString().slice(0, 7);
-                    const currentMonthTab = monthTabs.find(m => m.key === currentMonth);
-                    if (currentMonthTab) setActiveMonthTab(currentMonth);
-                  }}
+                  className="mobile-month-selector"
+                  onClick={toggleMobileTimeline}
                 >
-                  📅 Current Month
-                </button>
-              </div>
-              
-              <div className="timeline-list">
-                {monthTabs.map((month, index) => {
-                  const isActive = activeMonthTab === month.key;
-                  const expenseCount = month.expenses.length;
-                  const totalAmount = month.expenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
-                  
-                  return (
-                    <div
-                      key={month.key}
-                      className={`timeline-month ${isActive ? 'active' : ''}`}
-                      onClick={() => setActiveMonthTab(month.key)}
-                    >
-                      <div className="month-content">
-                        <div className="month-info">
-                          <div className="month-name">{month.name}</div>
-                          {expenseCount > 0 && (
-                            <div className="month-stats">
-                              <span className="expense-count">{expenseCount}</span>
-                              <span className="expense-total">${totalAmount.toFixed(0)}</span>
-                            </div>
-                          )}
-                        </div>
+                  <div className="selected-month-info">
+                    <span className="month-icon">📅</span>
+                    <div className="month-details">
+                      <div className="month-name">
+                        {monthTabs.find(m => m.key === activeMonthTab)?.name || 'Select Month'}
+                      </div>
+                      <div className="month-summary">
+                        {(() => {
+                          const activeMonth = monthTabs.find(m => m.key === activeMonthTab);
+                          if (activeMonth && activeMonth.expenses.length > 0) {
+                            const count = activeMonth.expenses.length;
+                            const total = activeMonth.expenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
+                            return `${count} expenses • $${total.toFixed(0)}`;
+                          }
+                          return 'Tap to browse months';
+                        })()}
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                  <span className={`chevron ${showMobileTimeline ? 'up' : 'down'}`}>▼</span>
+                </button>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+            
+            {/* Mobile Timeline Bottom Sheet */}
+            {showMobileTimeline && (
+              <>
+                <div className="mobile-timeline-overlay" onClick={() => {
+                  setShowMobileTimeline(false);
+                  document.body.style.overflow = '';
+                }} />
+                <div className="mobile-timeline-sheet">
+                  <div className="sheet-header">
+                    <h3>Select Month</h3>
+                    <button 
+                      className="sheet-close"
+                      onClick={() => {
+                        setShowMobileTimeline(false);
+                        document.body.style.overflow = '';
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="sheet-content">
+                    {monthTabs.map((month) => {
+                      const isActive = activeMonthTab === month.key;
+                      const expenseCount = month.expenses.length;
+                      const totalAmount = month.expenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
+                      
+                      return (
+                        <div
+                          key={month.key}
+                          className={`mobile-month-item ${isActive ? 'active' : ''}`}
+                          onClick={() => handleMobileMonthSelect(month.key)}
+                        >
+                          <div className="month-info">
+                            <div className="month-name">{month.name}</div>
+                            {expenseCount > 0 ? (
+                              <div className="month-stats">
+                                <span className="expense-count">{expenseCount} expenses</span>
+                                <span className="expense-total">${totalAmount.toFixed(0)}</span>
+                              </div>
+                            ) : (
+                              <div className="month-empty">No expenses</div>
+                            )}
+                          </div>
+                          {isActive && <div className="active-indicator">✓</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          // Desktop Timeline Sidebar
+          <div className="timeline-sidebar">
+            {monthTabs.length > 0 && (
+              <div className="timeline-nav">
+                <div className="timeline-header">
+                  <h3>Timeline</h3>
+                  <div className="timeline-subtitle">Browse expenses by month</div>
+                  <button 
+                    className="current-month-btn"
+                    onClick={() => {
+                      const currentMonth = new Date().toISOString().slice(0, 7);
+                      const currentMonthTab = monthTabs.find(m => m.key === currentMonth);
+                      if (currentMonthTab) setActiveMonthTab(currentMonth);
+                    }}
+                  >
+                    📅 Current Month
+                  </button>
+                </div>
+                
+                <div className="timeline-list">
+                  {monthTabs.map((month, index) => {
+                    const isActive = activeMonthTab === month.key;
+                    const expenseCount = month.expenses.length;
+                    const totalAmount = month.expenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
+                    
+                    return (
+                      <div
+                        key={month.key}
+                        className={`timeline-month ${isActive ? 'active' : ''}`}
+                        onClick={() => setActiveMonthTab(month.key)}
+                      >
+                        <div className="month-content">
+                          <div className="month-info">
+                            <div className="month-name">{month.name}</div>
+                            {expenseCount > 0 && (
+                              <div className="month-stats">
+                                <span className="expense-count">{expenseCount}</span>
+                                <span className="expense-total">${totalAmount.toFixed(0)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Main Content Area */}
         <div className="content-area">
@@ -1126,10 +1272,18 @@ const cancelPercentEdit = () => {
                     <div className="card-actions">
                       {expense.isEditing ? (
                         <>
-                          <button onClick={() => saveExpense(index)} className="save-btn">
-                            <FaCheck />
+                          <button 
+                            onClick={() => saveExpense(index)} 
+                            className="save-btn"
+                            disabled={savingExpenses[expense.id]}
+                          >
+                            {savingExpenses[expense.id] ? '⏳' : <FaCheck />}
                           </button>
-                          <button onClick={() => toggleEdit(index, false)} className="cancel-btn">
+                          <button 
+                            onClick={() => toggleEdit(index, false)} 
+                            className="cancel-btn"
+                            disabled={savingExpenses[expense.id]}
+                          >
                             <FaTimes />
                           </button>
                         </>
@@ -1317,10 +1471,18 @@ const cancelPercentEdit = () => {
                         <div className="mobile-actions">
                           {expense.isEditing ? (
                             <>
-                              <button onClick={() => saveExpense(index)} className="save-btn">
-                                <FaCheck />
+                              <button 
+                                onClick={() => saveExpense(index)} 
+                                className="save-btn"
+                                disabled={savingExpenses[expense.id]}
+                              >
+                                {savingExpenses[expense.id] ? '⏳' : <FaCheck />}
                               </button>
-                              <button onClick={() => toggleEdit(index, false)} className="cancel-btn">
+                              <button 
+                                onClick={() => toggleEdit(index, false)} 
+                                className="cancel-btn"
+                                disabled={savingExpenses[expense.id]}
+                              >
                                 <FaTimes />
                               </button>
                             </>
@@ -1437,10 +1599,18 @@ const cancelPercentEdit = () => {
                         <td className="actions-cell">
                           {expense.isEditing ? (
                             <div className="table-actions">
-                              <button onClick={() => saveExpense(index)} className="save-btn-table">
-                                <FaCheck />
+                              <button 
+                                onClick={() => saveExpense(index)} 
+                                className="save-btn-table"
+                                disabled={savingExpenses[expense.id]}
+                              >
+                                {savingExpenses[expense.id] ? '⏳' : <FaCheck />}
                               </button>
-                              <button onClick={() => toggleEdit(index, false)} className="cancel-btn-table">
+                              <button 
+                                onClick={() => toggleEdit(index, false)} 
+                                className="cancel-btn-table"
+                                disabled={savingExpenses[expense.id]}
+                              >
                                 <FaTimes />
                               </button>
                             </div>
@@ -1684,6 +1854,11 @@ const cancelPercentEdit = () => {
                 type="number"
                 value={newExpense.cost}
                 onChange={(e) => setNewExpense({ ...newExpense, cost: e.target.value })}
+                placeholder="Enter amount"
+                step="0.01"
+                min="0"
+                autoFocus
+                inputMode="decimal"
               />
             </label>
             <label>
@@ -1718,12 +1893,13 @@ const cancelPercentEdit = () => {
                 type="text"
                 value={newExpense.comment}
                 onChange={(e) => setNewExpense({ ...newExpense, comment: e.target.value })}
+                placeholder="What was this for? (optional)"
               />
             </label>
             <div className="dialog-actions">
               <button 
                 onClick={handleAddExpense}
-                disabled={!newExpense.person_id || persons.length === 0}
+                disabled={!newExpense.person_id || !newExpense.cost || parseFloat(newExpense.cost) <= 0 || persons.length === 0}
               >
                 Add
               </button>
@@ -1792,6 +1968,52 @@ const cancelPercentEdit = () => {
                   setImportFile(null);
                 }}
                 disabled={importing}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && expenseToDelete && (
+        <div className="dialog-overlay">
+          <div className="dialog delete-confirm-dialog">
+            <h2>Delete Expense</h2>
+            <p>Are you sure you want to delete this expense?</p>
+            
+            <div className="expense-preview">
+              <div className="preview-row">
+                <span className="label">Amount:</span>
+                <span className="value">${expenseToDelete.cost}</span>
+              </div>
+              <div className="preview-row">
+                <span className="label">Purchased by:</span>
+                <span className="value">{expenseToDelete.purchasedBy}</span>
+              </div>
+              <div className="preview-row">
+                <span className="label">Date:</span>
+                <span className="value">{expenseToDelete.date}</span>
+              </div>
+              <div className="preview-row">
+                <span className="label">Comment:</span>
+                <span className="value">{expenseToDelete.comment || 'No comment'}</span>
+              </div>
+            </div>
+            
+            <p className="warning-text">This action cannot be undone.</p>
+            
+            <div className="dialog-actions">
+              <button 
+                onClick={confirmDeleteExpense}
+                className="delete-confirm-btn"
+              >
+                Delete
+              </button>
+              <button 
+                onClick={cancelDeleteExpense}
+                className="cancel-btn"
               >
                 Cancel
               </button>

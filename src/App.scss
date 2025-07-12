@@ -4193,3 +4193,395 @@ select:focus {
     padding-bottom: 16px;
   }
 }
+
+// ===== MOBILE TIMELINE BOTTOM SHEET =====
+
+/* Mobile Timeline Header */
+.mobile-timeline-header {
+  width: 100%;
+  background: white;
+  border-bottom: 1px solid rgba($primary-color, 0.15);
+  z-index: 10;
+  
+  .mobile-month-selector {
+    width: 100%;
+    background: white;
+    border: none;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    
+    &:hover {
+      background: rgba($primary-color, 0.03);
+    }
+    
+    &:active {
+      background: rgba($primary-color, 0.08);
+    }
+    
+    .selected-month-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      text-align: left;
+      
+      .month-icon {
+        font-size: 1.2rem;
+        opacity: 0.8;
+      }
+      
+      .month-details {
+        flex: 1;
+        
+        .month-name {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: $primary-color;
+          margin-bottom: 2px;
+        }
+        
+        .month-summary {
+          font-size: 0.85rem;
+          color: rgba($primary-color, 0.7);
+          font-weight: 500;
+        }
+      }
+    }
+    
+    .chevron {
+      font-size: 0.9rem;
+      color: rgba($primary-color, 0.6);
+      transition: transform 0.3s ease;
+      
+      &.up {
+        transform: rotate(180deg);
+      }
+    }
+  }
+}
+
+/* Mobile Timeline Bottom Sheet */
+.mobile-timeline-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  animation: fadeIn 0.3s ease;
+}
+
+.mobile-timeline-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 16px 16px 0 0;
+  z-index: 101;
+  max-height: 70vh;
+  animation: slideUp 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  
+  .sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid rgba($primary-color, 0.1);
+    position: sticky;
+    top: 0;
+    background: white;
+    border-radius: 16px 16px 0 0;
+    
+    h3 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: $primary-color;
+    }
+    
+    .sheet-close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: rgba($primary-color, 0.1);
+      color: $primary-color;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      
+      &:hover {
+        background: rgba($primary-color, 0.2);
+        transform: scale(1.1);
+      }
+    }
+  }
+  
+  .sheet-content {
+    padding: 8px 0 24px;
+    overflow-y: auto;
+    max-height: calc(70vh - 80px);
+    
+    .mobile-month-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border-bottom: 1px solid rgba($primary-color, 0.05);
+      
+      &:hover {
+        background: rgba($primary-color, 0.03);
+      }
+      
+      &:active {
+        background: rgba($primary-color, 0.08);
+        transform: scale(0.98);
+      }
+      
+      &.active {
+        background: rgba($primary-color, 0.06);
+        border-left: 4px solid $primary-color;
+        padding-left: 20px;
+      }
+      
+      .month-info {
+        flex: 1;
+        
+        .month-name {
+          font-size: 1.1rem;
+          font-weight: 600;
+          color: $primary-color;
+          margin-bottom: 4px;
+        }
+        
+        .month-stats {
+          display: flex;
+          gap: 12px;
+          font-size: 0.85rem;
+          
+          .expense-count {
+            color: rgba($primary-color, 0.7);
+            font-weight: 500;
+          }
+          
+          .expense-total {
+            color: $secondary-color;
+            font-weight: 600;
+          }
+        }
+        
+        .month-empty {
+          font-size: 0.85rem;
+          color: rgba($primary-color, 0.5);
+          font-style: italic;
+        }
+      }
+      
+      .active-indicator {
+        color: $primary-color;
+        font-size: 1.2rem;
+        font-weight: 700;
+        opacity: 0.8;
+      }
+    }
+  }
+}
+
+/* Animation keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Update main layout for mobile timeline */
+@media (max-width: 768px) {
+  .main-layout {
+    flex-direction: column;
+    
+    .content-area {
+      padding-top: 0; // Remove top padding since mobile header is more compact
+    }
+  }
+}
+
+// ===== DELETE CONFIRMATION MODAL =====
+
+.delete-confirm-dialog {
+  max-width: 450px;
+  
+  h2 {
+    color: #d73527;
+    margin-bottom: 16px;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    
+    &::before {
+      content: '⚠️';
+      font-size: 1.2rem;
+    }
+  }
+  
+  p {
+    margin-bottom: 20px;
+    color: #666;
+    line-height: 1.4;
+  }
+  
+  .expense-preview {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    
+    .preview-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      
+      &:last-child {
+        border-bottom: none;
+      }
+      
+      .label {
+        font-weight: 600;
+        color: #555;
+        min-width: 110px;
+      }
+      
+      .value {
+        color: #333;
+        text-align: right;
+        flex: 1;
+        word-break: break-word;
+      }
+    }
+  }
+  
+  .warning-text {
+    color: #d73527;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-align: center;
+    margin-bottom: 24px;
+    padding: 8px;
+    background: rgba(215, 53, 39, 0.1);
+    border-radius: 4px;
+  }
+  
+  .dialog-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    
+    .delete-confirm-btn {
+      background: #d73527;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 80px;
+      
+      &:hover {
+        background: #c12e20;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(215, 53, 39, 0.3);
+      }
+      
+      &:active {
+        transform: translateY(0);
+      }
+    }
+    
+    .cancel-btn {
+      background: #6c757d;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 80px;
+      
+      &:hover {
+        background: #5a6268;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+      }
+      
+      &:active {
+        transform: translateY(0);
+      }
+    }
+  }
+}
+
+// Mobile-specific adjustments for delete confirmation
+@media (max-width: 768px) {
+  .delete-confirm-dialog {
+    margin: 20px;
+    max-width: none;
+    
+    .expense-preview {
+      .preview-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        
+        .label {
+          min-width: auto;
+          font-size: 0.85rem;
+          opacity: 0.8;
+        }
+        
+        .value {
+          text-align: left;
+          font-size: 0.95rem;
+        }
+      }
+    }
+    
+    .dialog-actions {
+      flex-direction: column-reverse;
+      gap: 8px;
+      
+      button {
+        width: 100%;
+        padding: 14px 20px;
+        font-size: 1rem;
+      }
+    }
+  }
+}

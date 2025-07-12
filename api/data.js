@@ -23,6 +23,11 @@ export default async function handler(req, res) {
     res.setHeader(key, corsHeaders[key]);
   });
 
+  // Extract ID from URL for DELETE/PATCH operations
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const pathParts = url.pathname.split('/');
+  const expenseId = pathParts[pathParts.length - 1]; // Get last part as ID
+
   try {
     if (req.method === 'GET') {
       // GET endpoint to fetch all expenses with person data
@@ -75,6 +80,59 @@ export default async function handler(req, res) {
       }));
 
       return res.status(201).json(transformedData[0]);
+
+    } else if (req.method === 'DELETE') {
+      // DELETE endpoint to remove an expense
+      const parsedId = parseInt(expenseId, 10);
+      
+      if (isNaN(parsedId)) {
+        return res.status(400).json({ error: 'Invalid expense ID' });
+      }
+      
+      const { data, error } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', parsedId)
+        .select();
+
+      if (error) {
+        console.error('Error deleting expense:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.status(200).json(data);
+
+    } else if (req.method === 'PATCH') {
+      // PATCH endpoint to update an expense
+      const parsedId = parseInt(expenseId, 10);
+      
+      if (isNaN(parsedId)) {
+        return res.status(400).json({ error: 'Invalid expense ID' });
+      }
+
+      const { cost, person_id, date, comment } = req.body;
+
+      const { data, error } = await supabase
+        .from('expenses')
+        .update({ cost: parseFloat(cost), person_id: parseInt(person_id), date, comment })
+        .eq('id', parsedId)
+        .select(`
+          id, cost, person_id, date, comment, created_at,
+          person:people(name)
+        `);
+
+      if (error) {
+        console.error('Error updating expense:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      // Transform data to match expected format
+      const transformedData = data.map(expense => ({
+        ...expense,
+        purchasedBy: expense.person?.name || 'Unknown'
+      }));
+
+      return res.status(200).json(transformedData[0]);
 
     } else {
       return res.status(405).json({ error: 'Method not allowed' });
