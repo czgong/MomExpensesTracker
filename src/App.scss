@@ -4111,11 +4111,70 @@ select:focus {
     margin-top: 8px;
     border-top: 1px solid #e9ecef;
     
-    // Inherit card button styles, just adjust layout
     button {
-      flex: 1;
+      // Base button styles (same as card-actions)
+      padding: 6px 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 500;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       min-width: 44px;
       min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1; // Mobile-specific: stretch to fill
+      
+      // Same color styles as card buttons
+      &.edit-btn {
+        background: rgba($secondary-color, 0.1);
+        color: $secondary-color;
+        border: 1px solid rgba($secondary-color, 0.2);
+        
+        &:hover {
+          background: $secondary-color;
+          color: white;
+          transform: scale(1.05);
+        }
+      }
+      
+      &.delete-btn {
+        background: rgba(#f44336, 0.1);
+        color: #f44336;
+        border: 1px solid rgba(#f44336, 0.2);
+        
+        &:hover {
+          background: #f44336;
+          color: white;
+          transform: scale(1.05);
+        }
+      }
+      
+      &.save-btn {
+        background: rgba($success-color, 0.1);
+        color: $success-color;
+        border: 1px solid rgba($success-color, 0.2);
+        
+        &:hover {
+          background: $success-color;
+          color: white;
+          transform: scale(1.05);
+        }
+      }
+      
+      &.cancel-btn {
+        background: rgba($text-muted, 0.1);
+        color: $text-muted;
+        border: 1px solid rgba($text-muted, 0.2);
+        
+        &:hover {
+          background: $text-muted;
+          color: white;
+          transform: scale(1.05);
+        }
+      }
     }
   }
 }
