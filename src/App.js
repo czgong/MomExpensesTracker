@@ -1,7 +1,9 @@
 import './App.scss';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { FaPlus, FaCheck, FaTimes } from 'react-icons/fa';
 import API_URL from './config';
+import BottomTabBar from './components/BottomTabBar';
+import ReportsView from './components/ReportsView';
 
 // App successfully deployed and working!
 
@@ -36,14 +38,11 @@ function App() {
   // Add a state to track which participants are in edit mode
   const [editingParticipants, setEditingParticipants] = useState({});
   
-  // State to track if percentages need validation
-  const [needsValidation, setNeedsValidation] = useState(false);
-  
   // View toggle state - true for cards, false for table
   const [isCardView, setIsCardView] = useState(true);
   
-  // Sidebar collapse state
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Main tab state - 'expenses', 'reports', or 'settings'
+  const [activeMainTab, setActiveMainTab] = useState('expenses');
   
   // Mobile responsive states
   const [isMobile, setIsMobile] = useState(false);
@@ -333,21 +332,28 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     }
   }, [participants]);
 
+
+
+
+
+
+
   // Function to organize expenses by month
   const getMonthTabs = (expensesArray) => {
     // Create an object to group expenses by month
     const monthsMap = {};
     
     expensesArray.forEach(expense => {
-      // Extract year and month from the date
-      const dateObj = new Date(expense.date);
-      const year = dateObj.getFullYear();
-      const month = dateObj.getMonth();
+      // Extract year and month from the date string directly to avoid timezone issues
+      // expense.date format is typically "YYYY-MM-DD"
+      const dateParts = expense.date.split('-');
+      const year = parseInt(dateParts[0]);
+      const month = parseInt(dateParts[1]) - 1; // Convert to 0-based month for Date constructor
       
       // Create a key for year-month (e.g., "2025-05")
       const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
       
-      // Get the month name
+      // Get the month name using the extracted year and month
       const monthName = new Date(year, month).toLocaleString('default', { month: 'long' });
       const displayName = `${monthName} ${year}`;
       
@@ -373,6 +379,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     });
   };
 
+
   const addExpense = () => {
     // Make sure we have at least one person
     if (persons.length === 0) {
@@ -387,6 +394,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       comment: "New expense",
       isEditing: true,
     };
+
 
     fetch(`${API_URL}/api/data`, {
       method: 'POST',
@@ -434,6 +442,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       alert("Please enter a valid cost amount.");
       return;
     }
+    
     
     fetch(`${API_URL}/api/data`, {
       method: 'POST',
@@ -504,6 +513,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   };
 
   const toggleEdit = (index, editing) => {
+    
     setExpenses(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], isEditing: editing };
@@ -528,6 +538,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       console.error("Expense does not have an id. Cannot update:", expenseToUpdate);
       return;
     }
+    
     
     // Set loading state for this specific expense
     setSavingExpenses(prev => ({ ...prev, [expenseToUpdate.id]: true }));
@@ -591,6 +602,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   const confirmDeleteExpense = () => {
     if (!expenseToDelete) return;
     
+    
     const expenseId = expenseToDelete.id;
     
     fetch(`${API_URL}/api/data/${expenseId}`, { method: 'DELETE' })
@@ -615,15 +627,30 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     setExpenseToDelete(null);
   };
   
-  // Calculate payment settlements - who owes whom
-  const calculatePaymentSettlements = (balances) => {
+  // Calculate payment settlements - who owes whom, accounting for existing payments
+  const calculatePaymentSettlements = (balances, existingPayments = {}) => {
     if (!balances || balances.length === 0) return [];
     
-    // Create working copy of net balances
+    // Create working copy of net balances, adjusted for existing payments
     const workingBalances = balances.map(b => ({
       ...b,
       remainingBalance: b.netBalance
     }));
+    
+    // Adjust balances based on existing payments
+    Object.values(existingPayments).forEach(payment => {
+      if (payment.paid) {
+        // Find the people involved in this payment
+        const fromPersonBalance = workingBalances.find(b => b.id === payment.fromPersonId);
+        const toPersonBalance = workingBalances.find(b => b.id === payment.toPersonId);
+        
+        if (fromPersonBalance && toPersonBalance) {
+          // Adjust balances: payer's debt decreases, receiver's credit decreases
+          fromPersonBalance.remainingBalance += payment.amount;
+          toPersonBalance.remainingBalance -= payment.amount;
+        }
+      }
+    });
     
     const settlements = [];
     
@@ -669,7 +696,6 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     
     const totalMonthlyExpenses = monthExpenses.reduce((sum, expense) => sum + parseFloat(expense.cost || 0), 0);
     
-    
     const paid = {};
     const owes = {};
     participants.forEach(person => {
@@ -703,7 +729,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       };
     });
     
-    const settlements = calculatePaymentSettlements(balances);
+    const settlements = calculatePaymentSettlements(balances, paymentStatus);
     
     return {
       totalExpenses: totalMonthlyExpenses,
@@ -715,8 +741,8 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   // Calculate total cost for all expenses
   const totalCost = expenses.reduce((sum, expense) => sum + Number(expense.cost), 0).toFixed(2);
   
-  // Get months tabs from expenses
-  const monthTabs = getMonthTabs(expenses);
+  // Get months tabs from expenses - memoized to prevent excessive re-renders
+  const monthTabs = useMemo(() => getMonthTabs(expenses), [expenses]);
   
   // Set first month as active if not set
   useEffect(() => {
@@ -733,8 +759,9 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   
   // Calculate balances whenever active month, expenses, or participants change
   useEffect(() => {
-    if (activeMonthTab && monthTabs.length > 0) {
-      const activeMonthData = monthTabs.find(month => month.key === activeMonthTab);
+    if (activeMonthTab && expenses.length > 0) {
+      const currentMonthTabs = getMonthTabs(expenses);
+      const activeMonthData = currentMonthTabs.find(month => month.key === activeMonthTab);
       if (activeMonthData) {
         const summary = calculateMonthlyBalances(activeMonthData.expenses);
         setMonthlySummary({
@@ -747,17 +774,20 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
         fetchPaymentStatuses(activeMonthData.key);
       }
     }
-  }, [activeMonthTab, expenses, participants]); // Re-added participants dependency
+  }, [activeMonthTab, expenses, participants]);
+
+  // Check auto-lock when payment status or settlements change
 
   // Separate effect for loading participants when month changes
   useEffect(() => {
     if (activeMonthTab && persons.length > 0) {
-      const activeMonthData = monthTabs.find(month => month.key === activeMonthTab);
+      const currentMonthTabs = getMonthTabs(expenses);
+      const activeMonthData = currentMonthTabs.find(month => month.key === activeMonthTab);
       if (activeMonthData) {
         syncParticipantsWithPersons(persons, activeMonthData.key, true); // Force reload
       }
     }
-  }, [activeMonthTab, persons]); // Only when month or persons change
+  }, [activeMonthTab, persons]); // Remove monthTabs dependency
 
   // Handle dropdown selection
   const handleMonthDropdownChange = (e) => {
@@ -778,7 +808,6 @@ const toggleAllPercentEdit = (editing) => {
   // If entering edit mode, save a deep copy of the current participants state
   if (editing) {
     setOriginalParticipants(JSON.parse(JSON.stringify(participants)));
-    setNeedsValidation(false);
   }
 };
 
@@ -797,9 +826,6 @@ const toggleAllPercentEdit = (editing) => {
       
       return updated;
     });
-    
-    // Mark that we need validation when saving
-    setNeedsValidation(true);
   };
   
   // Save edited percentages and validate
@@ -854,9 +880,6 @@ const toggleAllPercentEdit = (editing) => {
     
     // Exit edit mode
     toggleAllPercentEdit(false);
-    
-    // Clear validation flag
-    setNeedsValidation(false);
   };
   
   // Cancel editing and revert to previous values
@@ -866,9 +889,6 @@ const cancelPercentEdit = () => {
   
   // Exit edit mode
   toggleAllPercentEdit(false);
-  
-  // Clear validation flag
-  setNeedsValidation(false);
 };
   
   // Reset all percentages to equal distribution
@@ -1052,12 +1072,19 @@ const cancelPercentEdit = () => {
   // Check if any participant is in edit mode
   const isAnyParticipantEditing = Object.values(editingParticipants).some(Boolean);
 
+  // Handle navigation from reports to specific month
+  const handleNavigateToMonth = (monthKey) => {
+    setActiveMonthTab(monthKey);
+    setActiveMainTab('expenses'); // Switch back to expenses tab
+  };
+
   return (
     <div className="App">
       <header className="app-header">
         <div className="header-content">
           <img src="https://i.imgur.com/IHOQAqS.jpg" alt="Siblings" className="header-photo-large" />
           <h1 className="expenses-title">Mother's Expenses</h1>
+          
         </div>
       </header>
       
@@ -1148,60 +1175,13 @@ const cancelPercentEdit = () => {
               </>
             )}
           </>
-        ) : (
-          // Desktop Timeline Sidebar
-          <div className="timeline-sidebar">
-            {monthTabs.length > 0 && (
-              <div className="timeline-nav">
-                <div className="timeline-header">
-                  <h3>Timeline</h3>
-                  <div className="timeline-subtitle">Browse expenses by month</div>
-                  <button 
-                    className="current-month-btn"
-                    onClick={() => {
-                      const currentMonth = new Date().toISOString().slice(0, 7);
-                      const currentMonthTab = monthTabs.find(m => m.key === currentMonth);
-                      if (currentMonthTab) setActiveMonthTab(currentMonth);
-                    }}
-                  >
-                    📅 Current Month
-                  </button>
-                </div>
-                
-                <div className="timeline-list">
-                  {monthTabs.map((month, index) => {
-                    const isActive = activeMonthTab === month.key;
-                    const expenseCount = month.expenses.length;
-                    const totalAmount = month.expenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
-                    
-                    return (
-                      <div
-                        key={month.key}
-                        className={`timeline-month ${isActive ? 'active' : ''}`}
-                        onClick={() => setActiveMonthTab(month.key)}
-                      >
-                        <div className="month-content">
-                          <div className="month-info">
-                            <div className="month-name">{month.name}</div>
-                            {expenseCount > 0 && (
-                              <div className="month-stats">
-                                <span className="expense-count">{expenseCount}</span>
-                                <span className="expense-total">${totalAmount.toFixed(0)}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        ) : null}
         
         {/* Main Content Area */}
         <div className="content-area">
+          {activeMainTab === 'expenses' ? (
+            <>
+              {/* Expenses Content */}
           {/* View Toggle Control */}
           <div className="view-controls">
             <div className="view-toggle-wrapper">
@@ -1251,6 +1231,7 @@ const cancelPercentEdit = () => {
             activeMonthExpenses.map((expense, cardIndex) => {
               // Find the index in the original expenses array
               const index = expenses.findIndex(e => e.id === expense.id);
+              
               
               return (
                 <div key={expense.id || index} className={`expense-card ${expense.isEditing ? 'editing' : ''}`}>
@@ -1379,6 +1360,7 @@ const cancelPercentEdit = () => {
                 // Find the index in the original expenses array
                 const index = expenses.findIndex(e => e.id === expense.id);
                 const isExpanded = isRowExpanded(expense.id);
+                
                 
                 return (
                   <div 
@@ -1533,8 +1515,9 @@ const cancelPercentEdit = () => {
                     // Find the index in the original expenses array
                     const index = expenses.findIndex(e => e.id === expense.id);
                     
+                    
                     return (
-                      <tr key={expense.id || index} className={expense.isEditing ? 'editing-row' : ''}>
+                      <tr key={expense.id || index} className={`${expense.isEditing ? 'editing-row' : ''}`}>
                         <td className="cost-cell">
                           {expense.isEditing ? (
                             <input
@@ -1738,111 +1721,129 @@ const cancelPercentEdit = () => {
             <div className="month-cost">Current Month Total: ${monthTotalCost}</div>
             <div className="total-cost">Overall Total: ${totalCost}</div>
           </div>
-        </div>
-        
-        {/* Right Sidebar */}
-        <div className={`right-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
-          <div className="sidebar-header">
-            <div>
-              <h3>Settings</h3>
-              <div className="sidebar-subtitle">Configure your expenses</div>
-            </div>
-            <button 
-              className="sidebar-toggle"
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            >
-              <span className="toggle-icon">{isSidebarCollapsed ? '<' : '>'}</span>
-              <span className="toggle-text">{isSidebarCollapsed ? 'Show' : 'Hide'}</span>
-            </button>
-          </div>
-          
-          {!isSidebarCollapsed && (
-            <div className="sidebar-content">
-              {/* CSV Import Section */}
-              <div className="sidebar-section">
-                <div className="section-title">
-                  <h4>Import Data</h4>
-                </div>
-                <button 
-                  className="sidebar-button import-btn" 
-                  onClick={() => setShowImportDialog(true)}
-                >
-                  Import CSV File
-                </button>
+            </>
+          ) : activeMainTab === 'reports' ? (
+            /* Reports Content */
+            <ReportsView
+              expenses={expenses}
+              persons={persons}
+              monthTabs={monthTabs}
+              isMobile={isMobile}
+              onNavigateToMonth={handleNavigateToMonth}
+              currentMonthParticipants={participants}
+            />
+          ) : activeMainTab === 'settings' ? (
+            /* Settings Content */
+            <div className="settings-view">
+              <div className="settings-header">
+                <h2>Settings & Configuration</h2>
+                <p className="settings-subtitle">Manage your expense tracking preferences</p>
               </div>
               
-              {/* Participants Section */}
-              <div className="sidebar-section participants-sidebar">
-                <div className="section-title">
-                  <div className="section-header">
-                    <h4>Sharing Percentages</h4>
-                    {isAnyParticipantEditing ? (
-                      <div className="edit-actions">
-                        <button onClick={savePercentages} className="save-button" title="Save changes">
-                          ✓
-                        </button>
-                        <button onClick={cancelPercentEdit} className="cancel-button" title="Cancel changes">
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <button onClick={() => toggleAllPercentEdit(true)} className="edit-button" title="Edit percentages">
-                        ✏️ Edit
-                      </button>
-                    )}
+              <div className="settings-content">
+                {/* CSV Import Section - will be moved from sidebar */}
+                <div className="settings-section">
+                  <div className="section-title">
+                    <h3>Import Data</h3>
+                    <p>Import expenses from CSV files</p>
                   </div>
+                  <button 
+                    className="settings-button import-btn" 
+                    onClick={() => setShowImportDialog(true)}
+                  >
+                    Import CSV File
+                  </button>
                 </div>
                 
-                <p className="sidebar-info">
-                  Percentages for <strong>{monthlySummary?.month || 'current month'}</strong>
-                </p>
-                
-                <div className="participants-list">
-                  {participants.map(person => (
-                    <div key={person.id} className="participant-item">
-                      <span className="participant-name">{person.name}</span>
-                      <div className="participant-percentage">
-                        {editingParticipants[person.id] ? (
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            value={person.percentShare}
-                            onChange={(e) => handlePercentChange(person.id, e.target.value)}
-                            className="percent-input-sidebar"
-                          />
-                        ) : (
-                          <span className="percent-value">{person.percentShare}%</span>
+                {/* Sharing Percentages Section - will be moved from sidebar */}
+                <div className="settings-section">
+                  <div className="section-title">
+                    <h3>Sharing Percentages</h3>
+                    <p>Configure how expenses are shared for <strong>{monthlySummary?.month || 'current month'}</strong></p>
+                  </div>
+                  
+                  <div className="settings-participants">
+                    <div className="participants-header">
+                      {isAnyParticipantEditing ? (
+                        <div className="edit-actions">
+                          <button onClick={savePercentages} className="save-button" title="Save changes">
+                            ✓ Save Changes
+                          </button>
+                          <button onClick={cancelPercentEdit} className="cancel-button" title="Cancel changes">
+                            ✕ Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => toggleAllPercentEdit(true)} className="edit-button" title="Edit percentages">
+                          ✏️ Edit Percentages
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="participants-grid">
+                      {participants.map(person => (
+                        <div key={person.id} className="participant-card">
+                          <div className="participant-info">
+                            <span className="participant-name">{person.name}</span>
+                            <div className="participant-percentage">
+                              {editingParticipants[person.id] ? (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.01"
+                                  value={person.percentShare}
+                                  onChange={(e) => handlePercentChange(person.id, e.target.value)}
+                                  className="percent-input"
+                                />
+                              ) : (
+                                <span className="percent-value">{person.percentShare}%</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Show total percentage during editing */}
+                    {isAnyParticipantEditing && (
+                      <div className={
+                        Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) <= 0.1 
+                          ? "total-percentage valid-total" 
+                          : "total-percentage invalid-total"
+                      }>
+                        <strong>Total: {participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0).toFixed(1)}%</strong>
+                        {Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) > 0.1 && (
+                          <span className="warning"> ⚠️ Must equal 100%</span>
                         )}
                       </div>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Show total percentage during editing */}
-                {isAnyParticipantEditing && (
-                  <div className={
-                    Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) <= 0.1 
-                      ? "total-percentage valid-total" 
-                      : "total-percentage"
-                  }>
-                    Total: {participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0).toFixed(1)}%
-                    {Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) > 0.1 && (
-                      <span className="warning"> ⚠️</span>
                     )}
                   </div>
-                )}
+                </div>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
       
-      {/* Floating plus button for adding expenses */}
-      <button className="PlusButton" onClick={() => setShowAddDialog(true)} aria-label="Add Expense">
-        <FaPlus />
-      </button>
+      {/* Bottom Tab Bar */}
+      <BottomTabBar
+        activeTab={activeMainTab}
+        onTabChange={setActiveMainTab}
+        isMobile={isMobile}
+        timelineData={{
+          monthTabs,
+          activeMonthTab,
+          onMonthClick: setActiveMonthTab
+        }}
+      />
+      
+      {/* Floating plus button for adding expenses - only show on expenses tab */}
+      {activeMainTab === 'expenses' && (
+        <button className="PlusButton" onClick={() => setShowAddDialog(true)} aria-label="Add Expense">
+          <FaPlus />
+        </button>
+      )}
 
       {showAddDialog && (
         <div className="dialog-overlay">

@@ -2,22 +2,44 @@ import React, { useState, useEffect } from 'react';
 import './ExpenseSharing.scss';
 import { formatPercentage, fixRoundingIssues } from './percentageUtils';
 
-const ExpenseSharing = ({ expenses, participants, setParticipants, persons, onRefreshParticipants }) => {
+const ExpenseSharing = ({ 
+  expenses, 
+  participants, 
+  setParticipants, 
+  persons, 
+  onRefreshParticipants
+}) => {
   // State for monthly summary
   const [monthlySummaries, setMonthlySummaries] = useState([]);
   const [paymentStatus, setPaymentStatus] = useState({}); // Track payment status by settlement ID
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [monthlyParticipants, setMonthlyParticipants] = useState({}); // Store participants per month
   
-  // Calculate payment settlements - who owes whom
-  const calculatePaymentSettlements = (balances) => {
+  
+  // Calculate payment settlements - who owes whom, accounting for existing payments
+  const calculatePaymentSettlements = (balances, existingPayments = {}) => {
     if (!balances || balances.length === 0) return [];
     
-    // Create working copy of net balances
+    // Create working copy of net balances, adjusted for existing payments
     const workingBalances = balances.map(b => ({
       ...b,
       remainingBalance: b.netBalance
     }));
+    
+    // Adjust balances based on existing payments
+    Object.values(existingPayments).forEach(payment => {
+      if (payment.paid) {
+        // Find the people involved in this payment
+        const fromPersonBalance = workingBalances.find(b => b.id === payment.fromPersonId);
+        const toPersonBalance = workingBalances.find(b => b.id === payment.toPersonId);
+        
+        if (fromPersonBalance && toPersonBalance) {
+          // Adjust balances: payer's debt decreases, receiver's credit decreases
+          fromPersonBalance.remainingBalance += payment.amount;
+          toPersonBalance.remainingBalance -= payment.amount;
+        }
+      }
+    });
     
     const settlements = [];
     
@@ -62,9 +84,11 @@ const ExpenseSharing = ({ expenses, participants, setParticipants, persons, onRe
     const monthsMap = {};
     
     expenses.forEach(expense => {
-      const dateObj = new Date(expense.date);
-      const year = dateObj.getFullYear();
-      const month = dateObj.getMonth();
+      // Extract year and month from the date string directly to avoid timezone issues
+      // expense.date format is typically "YYYY-MM-DD"
+      const dateParts = expense.date.split('-');
+      const year = parseInt(dateParts[0]);
+      const month = parseInt(dateParts[1]) - 1; // Convert to 0-based month for Date constructor
       
       const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
       const monthName = new Date(year, month).toLocaleString('default', { month: 'long' });
@@ -173,7 +197,7 @@ const ExpenseSharing = ({ expenses, participants, setParticipants, persons, onRe
           };
         });
         
-        const settlements = calculatePaymentSettlements(balances);
+        const settlements = calculatePaymentSettlements(balances, paymentStatus);
         
         return {
           month: month.name,
@@ -227,7 +251,7 @@ const ExpenseSharing = ({ expenses, participants, setParticipants, persons, onRe
         };
       });
       
-      const overallSettlements = calculatePaymentSettlements(overallBalances);
+      const overallSettlements = calculatePaymentSettlements(overallBalances, paymentStatus);
       
       const overallSummary = {
         month: 'Overall',
