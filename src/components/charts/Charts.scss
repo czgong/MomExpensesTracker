@@ -1,0 +1,317 @@
+// Charts.scss - Shared styles for all chart components
+
+// Chart container styles
+.chart-container {
+  .chart-header {
+    margin-bottom: 20px;
+    
+    h3 {
+      margin: 0 0 4px 0;
+      color: #1a1a1a;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .chart-subtitle {
+      margin: 0;
+      color: #666;
+      font-size: 13px;
+      
+      .chart-hint {
+        color: #007AFF;
+        font-weight: 500;
+      }
+    }
+  }
+  
+  .chart-wrapper {
+    margin: 20px 0;
+    
+    // Ensure charts are touch-friendly on mobile
+    .recharts-wrapper {
+      .recharts-surface {
+        cursor: pointer;
+      }
+    }
+  }
+  
+  .chart-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: #666;
+    
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+    
+    p {
+      margin: 0;
+      font-size: 14px;
+    }
+  }
+  
+  .chart-summary {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f0;
+    
+    .summary-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      
+      .stat-label {
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      .stat-value {
+        font-size: 14px;
+        color: #1a1a1a;
+        font-weight: 600;
+      }
+    }
+  }
+  
+  .chart-legend {
+    margin-top: 16px;
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      
+      .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+        flex-shrink: 0;
+      }
+      
+      .legend-content {
+        flex: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        
+        .legend-name {
+          font-size: 13px;
+          color: #1a1a1a;
+          font-weight: 500;
+        }
+        
+        .legend-value {
+          font-size: 12px;
+          color: #666;
+        }
+      }
+    }
+  }
+}
+
+// Custom tooltip styles
+.chart-tooltip {
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  
+  .tooltip-header {
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .tooltip-content {
+    .tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      .tooltip-label {
+        color: rgba(255, 255, 255, 0.8);
+        margin-right: 12px;
+      }
+      
+      .tooltip-value {
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+// Summary Cards styles
+.spending-summary-cards {
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+    
+    .summary-card {
+      background: linear-gradient(135deg, var(--card-color), var(--card-color)dd);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      transition: transform 0.2s ease;
+      
+      &:hover {
+        transform: translateY(-2px);
+      }
+      
+      .card-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+        
+        .card-icon {
+          font-size: 24px;
+          opacity: 0.9;
+        }
+        
+        .card-title {
+          font-size: 14px;
+          font-weight: 500;
+          opacity: 0.9;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+      }
+      
+      .card-content {
+        .card-value {
+          font-size: 28px;
+          font-weight: 700;
+          margin-bottom: 4px;
+          line-height: 1;
+        }
+        
+        .card-subtitle {
+          font-size: 13px;
+          opacity: 0.8;
+        }
+      }
+    }
+  }
+}
+
+// Mobile responsive adjustments
+@media (max-width: 768px) {
+  .chart-container {
+    .chart-header {
+      h3 {
+        font-size: 16px;
+      }
+      
+      .chart-subtitle {
+        font-size: 12px;
+      }
+    }
+    
+    .chart-summary {
+      .summary-stat {
+        .stat-label {
+          font-size: 10px;
+        }
+        
+        .stat-value {
+          font-size: 13px;
+        }
+      }
+    }
+  }
+  
+  .spending-summary-cards {
+    .cards-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+      
+      .summary-card {
+        padding: 16px;
+        
+        .card-content {
+          .card-value {
+            font-size: 24px;
+          }
+        }
+      }
+    }
+  }
+  
+  .chart-tooltip {
+    padding: 10px;
+    font-size: 12px;
+  }
+}
+
+// Dark mode support (future enhancement)
+@media (prefers-color-scheme: dark) {
+  .chart-container {
+    .chart-header {
+      h3 {
+        color: #ffffff;
+      }
+      
+      .chart-subtitle {
+        color: #b0b0b0;
+      }
+    }
+    
+    .chart-summary {
+      border-top-color: #333;
+      
+      .summary-stat {
+        .stat-label {
+          color: #b0b0b0;
+        }
+        
+        .stat-value {
+          color: #ffffff;
+        }
+      }
+    }
+  }
+}
+
+// Loading spinner for chart components
+.chart-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007AFF;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
