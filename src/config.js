@@ -1,9 +1,9 @@
 // API Configuration
-// Use same domain for frontend and API
+// Use relative path for production to avoid CORS issues with Vercel preview URLs
 const API_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://mom-expenses-tracker.vercel.app'
+  ? ''
   : process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
-// Production configuration working correctly
+// Production uses relative API paths, development uses full URL
 
 export default API_URL;
