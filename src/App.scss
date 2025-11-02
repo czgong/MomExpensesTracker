@@ -952,7 +952,7 @@ select:focus {
   }
   
   @media (max-width: 768px) {
-    bottom: 24px;
+    bottom: 84px; // 60px tab bar height + 24px spacing to avoid overlap
     right: 20px;
     width: 60px;
     height: 60px;
@@ -966,7 +966,7 @@ select:focus {
   }
   
   @media (max-width: 480px) {
-    bottom: 20px;
+    bottom: 80px; // 60px tab bar height + 20px spacing to avoid overlap
     right: 16px;
     width: 56px;
     height: 56px;
