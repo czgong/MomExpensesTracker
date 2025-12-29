@@ -18,6 +18,9 @@ function App() {
   const [error, setError] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState({}); // Track payment status by settlement ID
   const [loadingPayments, setLoadingPayments] = useState(false);
+  const [outstandingBalances, setOutstandingBalances] = useState([]);
+  const [loadingOutstanding, setLoadingOutstanding] = useState(false);
+  const [monthStatuses, setMonthStatuses] = useState({}); // Track locked status by month_key
   const [newExpense, setNewExpense] = useState({
     cost: '',
     person_id: null,
@@ -283,9 +286,9 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       if (!response.ok) {
         throw new Error('Failed to fetch expenses');
       }
-      
+
       const expensesData = await response.json();
-      
+
       // Process data to match our frontend structure
       const processedExpenses = expensesData.map(expense => ({
         id: expense.id,
@@ -296,10 +299,10 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
         comment: expense.comment,
         created_at: expense.created_at || new Date().toISOString() // Add creation timestamp
       }));
-      
+
       // Sort by expense date (newest first)
       const sortedExpenses = processedExpenses.sort((a, b) => new Date(b.date) - new Date(a.date));
-      
+
       setExpenses(sortedExpenses);
 
       // Set default active tab to most recent month if we have expenses
@@ -318,10 +321,33 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     }
   };
 
+  // Fetch month statuses
+  const fetchMonthStatuses = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/month-status`);
+      if (!response.ok) {
+        console.error('Failed to fetch month statuses');
+        return;
+      }
+
+      const statuses = await response.json();
+
+      // Convert array to object keyed by month_key for easier lookup
+      const statusMap = {};
+      statuses.forEach(status => {
+        statusMap[status.month_key] = status;
+      });
+
+      setMonthStatuses(statusMap);
+    } catch (error) {
+      console.error('Error fetching month statuses:', error);
+    }
+  };
+
   useEffect(() => {
-    // Fetch persons first, then expenses
+    // Fetch persons first, then expenses and month statuses
     fetchPersons()
-      .then(() => fetchExpenses())
+      .then(() => Promise.all([fetchExpenses(), fetchMonthStatuses()]))
       .catch(error => console.error('Error in initial data loading:', error));
   }, []);
   
@@ -513,21 +539,33 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   };
 
   const toggleEdit = (index, editing) => {
-    
+    // Check if month is locked when trying to edit
+    if (editing) {
+      const expenseData = expenses[index];
+      const expenseDate = expenseData.date;
+      const dateParts = expenseDate.split('-');
+      const monthKey = `${dateParts[0]}-${dateParts[1]}`;
+
+      if (monthStatuses[monthKey]?.locked) {
+        alert('This month is locked. Cannot edit expenses from a completed month.');
+        return;
+      }
+    }
+
     setExpenses(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], isEditing: editing };
-      
+
       // Clear mobile expansion state when entering edit mode
       if (editing) {
         setExpandedRowId(null);
       }
-      
+
       // If canceling edit, revert to original data by re-fetching
       if (!editing) {
         fetchExpenses();
       }
-      
+
       return updated;
     });
   };
@@ -588,12 +626,22 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
 
   const deleteExpense = (index) => {
     const expenseData = expenses[index];
-    
+
     if (!expenseData.id || isNaN(expenseData.id)) {
       console.error("Invalid expense id. Cannot delete:", expenseData);
       return;
     }
-    
+
+    // Check if month is locked
+    const expenseDate = expenseData.date;
+    const dateParts = expenseDate.split('-');
+    const monthKey = `${dateParts[0]}-${dateParts[1]}`;
+
+    if (monthStatuses[monthKey]?.locked) {
+      alert('This month is locked. Cannot delete expenses from a completed month.');
+      return;
+    }
+
     // Show custom confirmation modal
     setExpenseToDelete({ ...expenseData, index });
     setShowDeleteConfirm(true);
@@ -769,12 +817,19 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
           key: activeMonthData.key,
           ...summary
         });
-        
+
         // Fetch payment statuses for this month
         fetchPaymentStatuses(activeMonthData.key);
       }
     }
   }, [activeMonthTab, expenses, participants]);
+
+  // Fetch outstanding balances when expenses, participants, active month, or month statuses change
+  useEffect(() => {
+    if (expenses.length > 0 && participants.length > 0 && monthTabs.length > 0) {
+      fetchOutstandingBalances();
+    }
+  }, [expenses, participants, activeMonthTab, monthStatuses]);
 
   // Check auto-lock when payment status or settlements change
 
@@ -995,6 +1050,236 @@ const cancelPercentEdit = () => {
     }
   };
 
+  // Complete the month - lock it and create settlement records
+  const completeMonth = async (monthKey) => {
+    const monthData = monthTabs.find(m => m.key === monthKey);
+    if (!monthData) {
+      alert('Month not found');
+      return;
+    }
+
+    const confirmMessage = `Complete ${monthData.name}?\n\nThis will:\n• Lock the month (no more expense edits)\n• Create settlement records in the database\n• Mark all current settlements as official\n\nThis action can be undone by unlocking the month.`;
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setLoadingPayments(true);
+
+      // Calculate monthly summary for this month
+      const monthExpenses = monthData.expenses;
+      const totalExpenses = monthExpenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
+
+      // Calculate settlements using current month participants
+      // Note: If this is an old month being completed now, it will use current participant settings
+      const monthSummary = calculateMonthlyBalancesForMonth(monthExpenses, monthKey);
+      if (!monthSummary || !monthSummary.settlements) {
+        alert('Unable to calculate settlements for this month');
+        return;
+      }
+
+      if (monthSummary.settlements.length === 0) {
+        alert('No settlements to record for this month');
+        return;
+      }
+
+      // Create payment records for all settlements
+      const settlementPromises = monthSummary.settlements.map(settlement => {
+        // Find person IDs from participant names
+        const fromPerson = participants.find(p => p.name === settlement.from);
+        const toPerson = participants.find(p => p.name === settlement.to);
+
+        if (!fromPerson || !toPerson) {
+          console.error('Could not find person IDs for settlement:', settlement);
+          return null;
+        }
+
+        return fetch(`${API_URL}/api/payments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentKey: settlement.id,
+            monthKey: monthKey,
+            fromPersonId: fromPerson.id,
+            toPersonId: toPerson.id,
+            amount: settlement.amount,
+            paid: false // Default to unpaid when completing month
+          })
+        });
+      }).filter(Boolean);
+
+      if (settlementPromises.length === 0) {
+        alert('Unable to create settlement records - participant data may be missing');
+        return;
+      }
+
+      // Wait for all settlement records to be created
+      await Promise.all(settlementPromises);
+
+      // Mark month as locked
+      const lockResponse = await fetch(`${API_URL}/api/month-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          monthKey: monthKey,
+          locked: true,
+          lockedBy: 'user',
+          totalExpenses: totalExpenses,
+          expenseCount: monthExpenses.length
+        })
+      });
+
+      if (!lockResponse.ok) {
+        throw new Error('Failed to lock month');
+      }
+
+      // Refresh month statuses
+      await fetchMonthStatuses();
+
+      // Refresh payment statuses
+      await fetchPaymentStatuses(monthKey);
+
+      alert(`${monthData.name} has been completed and locked!`);
+
+    } catch (error) {
+      console.error('Error completing month:', error);
+      alert('Failed to complete month. Please try again.');
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  // Fetch all unpaid settlements from previous months
+  // UPDATED: Only show settlements from completed/locked months
+  const fetchOutstandingBalances = async () => {
+    try {
+      setLoadingOutstanding(true);
+
+      if (monthTabs.length === 0) {
+        setOutstandingBalances([]);
+        return;
+      }
+
+      // Get current month key
+      const currentMonthKey = activeMonthTab || monthTabs[0]?.key;
+
+      // Get all months before the current month that are locked/completed
+      const previousMonths = monthTabs.filter(month => {
+        const isBeforeCurrent = month.key < currentMonthKey;
+        const isLocked = monthStatuses[month.key]?.locked || false;
+        return isBeforeCurrent && isLocked; // Only show locked months
+      });
+
+      if (previousMonths.length === 0) {
+        setOutstandingBalances([]);
+        return;
+      }
+
+      const outstandingSettlements = [];
+
+      // For each previous locked month, fetch payment records
+      for (const month of previousMonths) {
+        // Fetch payment statuses for this month
+        const response = await fetch(`${API_URL}/api/payments/${month.key}`);
+        let monthPayments = {};
+
+        if (response.ok) {
+          monthPayments = await response.json();
+        }
+
+        // Only show settlements that have database records (from month completion)
+        // and are unpaid
+        Object.entries(monthPayments).forEach(([paymentKey, paymentData]) => {
+          if (!paymentData.paid) {
+            // Find person names from IDs
+            const fromPerson = participants.find(p => p.id === paymentData.from_person_id);
+            const toPerson = participants.find(p => p.id === paymentData.to_person_id);
+
+            if (fromPerson && toPerson) {
+              outstandingSettlements.push({
+                id: paymentKey,
+                from: fromPerson.name,
+                to: toPerson.name,
+                amount: paymentData.amount,
+                monthKey: month.key,
+                monthName: month.name,
+                updated_at: paymentData.updated_at,
+                created_at: paymentData.created_at
+              });
+            } else {
+              console.warn(`Outstanding balance skipped: Could not find participant for payment ${paymentKey} in ${month.key}`, {
+                from_person_id: paymentData.from_person_id,
+                to_person_id: paymentData.to_person_id,
+                fromPerson,
+                toPerson
+              });
+            }
+          }
+        });
+      }
+
+      setOutstandingBalances(outstandingSettlements);
+    } catch (error) {
+      console.error('Error fetching outstanding balances:', error);
+    } finally {
+      setLoadingOutstanding(false);
+    }
+  };
+
+  // Helper function to calculate balances for a specific month (similar to calculateMonthlyBalances but doesn't use current participants)
+  const calculateMonthlyBalancesForMonth = (monthExpenses, monthKey) => {
+    if (!monthExpenses || monthExpenses.length === 0) return null;
+
+    // We need to get the participants for this specific month
+    // For now, use current participants as a fallback
+    // TODO: This should ideally fetch the month-specific participants
+    const monthParticipants = participants.length > 0 ? participants : [];
+
+    if (monthParticipants.length === 0) return null;
+
+    const totalMonthlyExpenses = monthExpenses.reduce((sum, expense) => sum + parseFloat(expense.cost || 0), 0);
+
+    const paid = {};
+    const owes = {};
+    monthParticipants.forEach(person => {
+      paid[person.id] = 0;
+      owes[person.id] = (person.percentShare / 100) * totalMonthlyExpenses;
+    });
+
+    monthExpenses.forEach(expense => {
+      let paidByParticipant = monthParticipants.find(p => p.id === expense.person_id);
+
+      if (!paidByParticipant && expense.purchasedBy) {
+        paidByParticipant = monthParticipants.find(p =>
+          p.name.toLowerCase() === expense.purchasedBy.toLowerCase()
+        );
+      }
+
+      if (paidByParticipant) {
+        paid[paidByParticipant.id] = (paid[paidByParticipant.id] || 0) + parseFloat(expense.cost || 0);
+      }
+    });
+
+    const balances = monthParticipants.map(person => {
+      return {
+        id: person.id,
+        name: person.name,
+        paid: paid[person.id] || 0,
+        owes: owes[person.id] || 0,
+        netBalance: (paid[person.id] || 0) - (owes[person.id] || 0)
+      };
+    });
+
+    const settlements = calculatePaymentSettlements(balances, {});
+
+    return {
+      totalExpenses: totalMonthlyExpenses,
+      balances,
+      settlements
+    };
+  };
+
   // Toggle payment status for a settlement and persist to backend
   const togglePaymentStatus = async (settlement, monthKey) => {
     const currentStatus = paymentStatus[settlement.id];
@@ -1148,15 +1433,19 @@ const cancelPercentEdit = () => {
                       const isActive = activeMonthTab === month.key;
                       const expenseCount = month.expenses.length;
                       const totalAmount = month.expenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
-                      
+                      const isLocked = monthStatuses[month.key]?.locked || false;
+
                       return (
                         <div
                           key={month.key}
-                          className={`mobile-month-item ${isActive ? 'active' : ''}`}
+                          className={`mobile-month-item ${isActive ? 'active' : ''} ${isLocked ? 'locked' : ''}`}
                           onClick={() => handleMobileMonthSelect(month.key)}
                         >
                           <div className="month-info">
-                            <div className="month-name">{month.name}</div>
+                            <div className="month-name">
+                              {month.name}
+                              {isLocked && <span className="lock-icon" title="Month is locked">🔒</span>}
+                            </div>
                             {expenseCount > 0 ? (
                               <div className="month-stats">
                                 <span className="expense-count">{expenseCount} expenses</span>
@@ -1181,6 +1470,58 @@ const cancelPercentEdit = () => {
         <div className="content-area">
           {activeMainTab === 'expenses' ? (
             <>
+              {/* Outstanding Balance Banner */}
+              {outstandingBalances.length > 0 && (
+                <div className="outstanding-balance-banner">
+                  <div className="banner-icon">⚠️</div>
+                  <div className="banner-content">
+                    <h3>Outstanding Balances from Previous Months</h3>
+                    <p>
+                      {(() => {
+                        // Calculate total outstanding per person
+                        const totals = {};
+                        outstandingBalances.forEach(settlement => {
+                          if (!totals[settlement.from]) {
+                            totals[settlement.from] = { owes: 0, owed: 0 };
+                          }
+                          if (!totals[settlement.to]) {
+                            totals[settlement.to] = { owes: 0, owed: 0 };
+                          }
+                          totals[settlement.from].owes += settlement.amount;
+                          totals[settlement.to].owed += settlement.amount;
+                        });
+
+                        // Build summary text
+                        const summaries = Object.entries(totals)
+                          .filter(([name, amounts]) => amounts.owes > 0.01 || amounts.owed > 0.01)
+                          .map(([name, amounts]) => {
+                            if (amounts.owes > 0.01) {
+                              return `${name} owes $${amounts.owes.toFixed(2)}`;
+                            } else if (amounts.owed > 0.01) {
+                              return `${name} is owed $${amounts.owed.toFixed(2)}`;
+                            }
+                            return null;
+                          })
+                          .filter(Boolean);
+
+                        return summaries.join(' • ');
+                      })()}
+                    </p>
+                  </div>
+                  <button
+                    className="banner-details-btn"
+                    onClick={() => {
+                      const detailsSection = document.getElementById('outstanding-balances-section');
+                      if (detailsSection) {
+                        detailsSection.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }}
+                  >
+                    View Details ↓
+                  </button>
+                </div>
+              )}
+
               {/* Expenses Content */}
           {/* View Toggle Control */}
           <div className="view-controls">
@@ -1617,6 +1958,66 @@ const cancelPercentEdit = () => {
           </div>
         )}
         
+          {/* Outstanding Balances Section */}
+          {outstandingBalances.length > 0 && (
+            <div id="outstanding-balances-section" className="sharing-section outstanding-balances">
+              <h3>Outstanding Balances from Previous Months</h3>
+              <p className="section-description">
+                These are unpaid settlements from previous months. To mark a payment as paid, navigate to that specific month and update the status there.
+              </p>
+
+              <table className="settlements-table outstanding-table">
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {outstandingBalances.map((settlement, index) => (
+                    <tr key={`${settlement.monthKey}-${settlement.id}`} className="unpaid-settlement outstanding-row">
+                      <td className="month-cell">{settlement.monthName}</td>
+                      <td>{settlement.from}</td>
+                      <td>{settlement.to}</td>
+                      <td>${settlement.amount.toFixed(2)}</td>
+                      <td className="settlement-status-readonly">
+                        <span className="status-badge unpaid-badge">Unpaid</span>
+                      </td>
+                      <td className="action-cell">
+                        <button
+                          className="view-month-btn"
+                          onClick={() => {
+                            setActiveMonthTab(settlement.monthKey);
+                            // Scroll to top after month change
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                        >
+                          View Month
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="outstanding-summary">
+                <p>
+                  <strong>{outstandingBalances.length} unpaid settlement{outstandingBalances.length !== 1 ? 's' : ''}</strong> from previous months
+                </p>
+                <p className="total-outstanding">
+                  Total outstanding: ${outstandingBalances.reduce((sum, s) => sum + s.amount, 0).toFixed(2)}
+                </p>
+                <p className="help-text">
+                  💡 Tip: Click "View Month" to navigate to that month and mark the payment as paid.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Monthly Balance Breakdown Section */}
           {monthlySummary && monthlySummary.balances && (
             <div className="sharing-section monthly-balance">
@@ -1709,6 +2110,35 @@ const cancelPercentEdit = () => {
                     </p>
                     {monthlySummary.settlements.every(s => paymentStatus[s.id]?.paid) && (
                       <p className="all-settled">🎉 All payments settled!</p>
+                    )}
+
+                    {/* Complete Month Button */}
+                    {!monthStatuses[monthlySummary.key]?.locked && (
+                      <div className="complete-month-section">
+                        <button
+                          className="complete-month-btn"
+                          onClick={() => completeMonth(monthlySummary.key)}
+                          disabled={loadingPayments}
+                        >
+                          {loadingPayments ? 'Processing...' : 'Complete Month'}
+                        </button>
+                        <p className="complete-month-info">
+                          Completing this month will lock it and create settlement records in the database.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Month Locked Indicator */}
+                    {monthStatuses[monthlySummary.key]?.locked && (
+                      <div className="month-locked-indicator">
+                        <div className="locked-badge">
+                          🔒 Month Completed
+                        </div>
+                        <p className="locked-info">
+                          This month was completed on {new Date(monthStatuses[monthlySummary.key].locked_at).toLocaleDateString()}.
+                          Expenses can no longer be added or edited.
+                        </p>
+                      </div>
                     )}
                   </div>
                 </>
@@ -1840,7 +2270,19 @@ const cancelPercentEdit = () => {
       
       {/* Floating plus button for adding expenses - only show on expenses tab */}
       {activeMainTab === 'expenses' && (
-        <button className="PlusButton" onClick={() => setShowAddDialog(true)} aria-label="Add Expense">
+        <button
+          className="PlusButton"
+          onClick={() => {
+            if (monthStatuses[activeMonthTab]?.locked) {
+              alert('This month is locked. Cannot add expenses to a completed month.');
+              return;
+            }
+            setShowAddDialog(true);
+          }}
+          disabled={monthStatuses[activeMonthTab]?.locked}
+          aria-label="Add Expense"
+          title={monthStatuses[activeMonthTab]?.locked ? 'Month is locked' : 'Add Expense'}
+        >
           <FaPlus />
         </button>
       )}

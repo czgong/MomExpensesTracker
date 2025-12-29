@@ -850,6 +850,220 @@ select:focus {
   }
 }
 
+/* Outstanding Balance Banner */
+.outstanding-balance-banner {
+  background: linear-gradient(135deg, #fff3cd 0%, #fff9e6 100%);
+  border: 2px solid #ffc107;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1rem 0 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.15);
+
+  .banner-icon {
+    font-size: 2.5rem;
+    flex-shrink: 0;
+  }
+
+  .banner-content {
+    flex: 1;
+    text-align: left;
+
+    h3 {
+      margin: 0 0 0.5rem 0;
+      color: #856404;
+      font-size: 1.2rem;
+    }
+
+    p {
+      margin: 0;
+      color: #856404;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+  }
+
+  .banner-details-btn {
+    background-color: #ffc107;
+    color: #856404;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+
+    &:hover {
+      background-color: #ffb300;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(255, 193, 7, 0.3);
+    }
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.25rem;
+    gap: 1rem;
+
+    .banner-content {
+      text-align: center;
+
+      h3 {
+        font-size: 1.1rem;
+      }
+
+      p {
+        font-size: 0.9rem;
+      }
+    }
+
+    .banner-details-btn {
+      width: 100%;
+    }
+  }
+}
+
+/* Outstanding Balances Section */
+.outstanding-balances {
+  width: 100%;
+  margin: 2rem 0;
+  max-width: none;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 2px solid #ffc107;
+  padding: 2rem;
+
+  @media (max-width: 768px) {
+    margin: 1.5rem auto;
+    padding: 1.5rem;
+    border-radius: 8px;
+  }
+
+  h3 {
+    color: #856404;
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-size: 1.3rem;
+  }
+
+  .section-description {
+    color: #856404;
+    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+  }
+
+  .outstanding-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+
+    th, td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid $table-border-color;
+    }
+
+    th {
+      background-color: rgba(#ffc107, 0.15);
+      color: #856404;
+      font-weight: 600;
+    }
+
+    .month-cell {
+      font-weight: 600;
+      color: #856404;
+    }
+
+    .outstanding-row {
+      background-color: rgba(#fff3cd, 0.3);
+
+      &:hover {
+        background-color: rgba(#fff3cd, 0.5);
+      }
+    }
+
+    .unpaid-text {
+      color: #dc3545;
+      font-weight: 600;
+    }
+  }
+
+  .settlement-status-readonly {
+    text-align: center;
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-align: center;
+
+    &.unpaid-badge {
+      background-color: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffc107;
+    }
+  }
+
+  .action-cell {
+    text-align: center;
+  }
+
+  .view-month-btn {
+    background-color: #86A69D;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background-color: darken(#86A69D, 10%);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(#86A69D, 0.3);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  .outstanding-summary {
+    background-color: rgba(#ffc107, 0.1);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-top: 1rem;
+
+    p {
+      margin: 0.5rem 0;
+      color: #856404;
+
+      &.total-outstanding {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #dc3545;
+      }
+
+      &.help-text {
+        margin-top: 1rem;
+        font-size: 0.9rem;
+        font-style: italic;
+        color: #856404;
+      }
+    }
+  }
+}
+
 /* Monthly balance and participants styling */
 .monthly-balance, .participants-section {
   width: 100%;
@@ -860,61 +1074,61 @@ select:focus {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(0, 0, 0, 0.06);
   padding: 2rem;
-  
+
   @media (max-width: 768px) {
     margin: 1.5rem auto;
     padding: 1.5rem;
     border-radius: 8px;
   }
-  
+
   h3 {
     color: $accent-color-2;
     margin-top: 0;
     margin-bottom: 1.2rem;
     font-size: 1.3rem;
   }
-  
+
   h4 {
     color: $primary-color;
     margin: 1.2rem 0 0.8rem;
     font-size: 1.1rem;
   }
-  
+
   .total-summary {
     background-color: rgba($primary-color, 0.1);
     padding: 0.8rem 1rem;
     border-radius: 6px;
     margin-bottom: 1rem;
-    
+
     p {
       margin: 0;
       font-weight: 600;
       color: $primary-color;
     }
   }
-  
+
   .balances-table {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 1rem;
-    
+
     th, td {
       padding: 10px 15px;
       text-align: left;
       border-bottom: 1px solid $table-border-color;
     }
-    
+
     th {
       background-color: rgba($primary-color, 0.1);
       color: $text-color;
       font-weight: 600;
     }
-    
+
     .positive-balance {
       color: #4caf50;
       font-weight: 600;
     }
-    
+
     .negative-balance {
       color: #f44336;
       font-weight: 600;
@@ -950,7 +1164,18 @@ select:focus {
   &:active {
     transform: translateY(-1px) scale(1.02);
   }
-  
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: linear-gradient(135deg, #ccc, #999);
+
+    &:hover {
+      transform: none;
+      box-shadow: 0 8px 20px rgba($secondary-color, 0.3);
+    }
+  }
+
   @media (max-width: 768px) {
     bottom: 84px; // 60px tab bar height + 24px spacing to avoid overlap
     right: 20px;
@@ -1960,12 +2185,74 @@ select:focus {
   background-color: rgba($primary-color, 0.05);
   border-radius: 6px;
   text-align: center;
-  
+
   .all-settled {
     color: #4caf50;
     font-size: 1.1rem;
     font-weight: bold;
     margin: 10px 0 0 0;
+  }
+
+  .complete-month-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 2px solid rgba($primary-color, 0.1);
+
+    .complete-month-btn {
+      background: linear-gradient(135deg, $secondary-color 0%, darken($secondary-color, 10%) 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba($secondary-color, 0.3);
+
+      &:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba($secondary-color, 0.4);
+      }
+
+      &:active:not(:disabled) {
+        transform: translateY(0);
+      }
+
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    }
+
+    .complete-month-info {
+      margin-top: 12px;
+      font-size: 0.9rem;
+      color: rgba($primary-color, 0.7);
+      font-style: italic;
+    }
+  }
+
+  .month-locked-indicator {
+    margin-top: 20px;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(#ffc107, 0.15) 0%, rgba(#ffb300, 0.1) 100%);
+    border: 2px solid #ffc107;
+    border-radius: 12px;
+
+    .locked-badge {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #856404;
+      margin-bottom: 8px;
+    }
+
+    .locked-info {
+      font-size: 0.95rem;
+      color: #856404;
+      margin: 0;
+      line-height: 1.5;
+    }
   }
 }
 
@@ -4403,15 +4690,32 @@ select:focus {
         border-left: 4px solid $primary-color;
         padding-left: 20px;
       }
+
+      &.locked {
+        opacity: 0.85;
+        background: rgba(#ffc107, 0.05);
+
+        .month-name {
+          color: rgba($primary-color, 0.85);
+        }
+      }
       
       .month-info {
         flex: 1;
-        
+
         .month-name {
           font-size: 1.1rem;
           font-weight: 600;
           color: $primary-color;
           margin-bottom: 4px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          .lock-icon {
+            font-size: 0.9rem;
+            opacity: 0.7;
+          }
         }
         
         .month-stats {

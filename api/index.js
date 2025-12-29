@@ -388,13 +388,16 @@ app.get('/api/payments/:monthKey', async (req, res) => {
       return res.status(500).json({ error: error.message });
     }
 
-    // Convert to a map for easy lookup, including timestamp info
+    // Convert to a map for easy lookup, including all payment record fields
     const paymentMap = {};
     payments?.forEach(payment => {
       paymentMap[payment.payment_key] = {
         paid: payment.paid,
         updated_at: payment.updated_at,
-        created_at: payment.created_at
+        created_at: payment.created_at,
+        from_person_id: payment.from_person_id,
+        to_person_id: payment.to_person_id,
+        amount: payment.amount
       };
     });
 
@@ -437,10 +440,13 @@ app.post('/api/payments', async (req, res) => {
 
     let result;
     if (existingPayment) {
-      // Update existing payment
+      // Update existing payment with all fields (handles re-locking with different amounts)
       const { data, error } = await supabase
         .from('payments')
-        .update({ 
+        .update({
+          from_person_id: fromPersonId,
+          to_person_id: toPersonId,
+          amount: amount,
           paid: paid,
           updated_at: new Date().toISOString()
         })
@@ -572,6 +578,149 @@ app.post('/api/monthly-shares', async (req, res) => {
       message: `Successfully saved shares for ${monthKey}`,
       shares: data 
     });
+  } catch (error) {
+    console.error('Server error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET endpoint to retrieve month status
+app.get('/api/month-status/:monthKey?', async (req, res) => {
+  try {
+    const { monthKey } = req.params;
+
+    if (!monthKey) {
+      // Get all month statuses
+      const { data: statuses, error } = await supabase
+        .from('month_status')
+        .select('*')
+        .order('month_key', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching month statuses:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.json(statuses || []);
+    } else {
+      // Get specific month status
+      const { data: status, error } = await supabase
+        .from('month_status')
+        .select('*')
+        .eq('month_key', monthKey)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No record found - return default unlocked status
+          return res.json({
+            month_key: monthKey,
+            locked: false,
+            locked_at: null,
+            locked_by: null,
+            total_expenses: null,
+            expense_count: null
+          });
+        }
+        console.error('Error fetching month status:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.json(status);
+    }
+  } catch (error) {
+    console.error('Server error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST endpoint to create or update month status
+app.post('/api/month-status', async (req, res) => {
+  try {
+    const {
+      monthKey,
+      locked,
+      lockedBy,
+      totalExpenses,
+      expenseCount
+    } = req.body;
+
+    // Validate required fields
+    if (!monthKey) {
+      return res.status(400).json({ error: 'monthKey is required' });
+    }
+
+    // Check if month status already exists
+    const { data: existingStatus, error: fetchError } = await supabase
+      .from('month_status')
+      .select('*')
+      .eq('month_key', monthKey)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('Error checking existing status:', fetchError);
+      return res.status(500).json({ error: fetchError.message });
+    }
+
+    let result;
+    if (existingStatus) {
+      // Update existing status
+      const updateData = {
+        updated_at: new Date().toISOString()
+      };
+
+      if (locked !== undefined) {
+        updateData.locked = locked;
+        if (locked) {
+          updateData.locked_at = new Date().toISOString();
+          updateData.locked_by = lockedBy || 'user';
+        } else {
+          updateData.locked_at = null;
+          updateData.locked_by = null;
+        }
+      }
+
+      if (totalExpenses !== undefined) updateData.total_expenses = totalExpenses;
+      if (expenseCount !== undefined) updateData.expense_count = expenseCount;
+
+      const { data, error } = await supabase
+        .from('month_status')
+        .update(updateData)
+        .eq('month_key', monthKey)
+        .select();
+
+      if (error) {
+        console.error('Error updating month status:', error);
+        return res.status(500).json({ error: error.message });
+      }
+      result = data;
+    } else {
+      // Create new status record
+      const insertData = {
+        month_key: monthKey,
+        locked: locked !== undefined ? locked : false,
+        total_expenses: totalExpenses || null,
+        expense_count: expenseCount || null
+      };
+
+      if (locked) {
+        insertData.locked_at = new Date().toISOString();
+        insertData.locked_by = lockedBy || 'user';
+      }
+
+      const { data, error } = await supabase
+        .from('month_status')
+        .insert(insertData)
+        .select();
+
+      if (error) {
+        console.error('Error creating month status:', error);
+        return res.status(500).json({ error: error.message });
+      }
+      result = data;
+    }
+
+    res.json(result[0]);
   } catch (error) {
     console.error('Server error:', error);
     res.status(500).json({ error: error.message });
