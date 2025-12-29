@@ -939,9 +939,10 @@ select:focus {
   padding: 2rem;
 
   @media (max-width: 768px) {
-    margin: 1.5rem auto;
-    padding: 1.5rem;
+    margin: 1.5rem 0;
+    padding: 1rem;
     border-radius: 8px;
+    overflow-x: hidden;
   }
 
   h3 {
@@ -949,12 +950,21 @@ select:focus {
     margin-top: 0;
     margin-bottom: 0.5rem;
     font-size: 1.3rem;
+
+    @media (max-width: 768px) {
+      font-size: 1.1rem;
+    }
   }
 
   .section-description {
     color: #856404;
     margin-bottom: 1.5rem;
     font-size: 0.95rem;
+
+    @media (max-width: 768px) {
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
   }
 
   .outstanding-table {
@@ -966,17 +976,31 @@ select:focus {
       padding: 12px 15px;
       text-align: left;
       border-bottom: 1px solid $table-border-color;
+
+      @media (max-width: 768px) {
+        padding: 8px 6px;
+        font-size: 0.85rem;
+      }
     }
 
     th {
       background-color: rgba(#ffc107, 0.15);
       color: #856404;
       font-weight: 600;
+
+      @media (max-width: 768px) {
+        font-size: 0.8rem;
+        padding: 8px 4px;
+      }
     }
 
     .month-cell {
       font-weight: 600;
       color: #856404;
+
+      @media (max-width: 768px) {
+        font-size: 0.8rem;
+      }
     }
 
     .outstanding-row {
@@ -990,6 +1014,33 @@ select:focus {
     .unpaid-text {
       color: #dc3545;
       font-weight: 600;
+
+      @media (max-width: 768px) {
+        font-size: 0.85rem;
+      }
+    }
+
+    @media (max-width: 768px) {
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+
+      thead {
+        display: table-header-group;
+      }
+
+      tbody {
+        display: table-row-group;
+      }
+
+      tr {
+        display: table-row;
+      }
+
+      th, td {
+        display: table-cell;
+        white-space: nowrap;
+      }
     }
   }
 
@@ -1026,6 +1077,12 @@ select:focus {
     cursor: pointer;
     font-size: 0.9rem;
     transition: all 0.2s ease;
+
+    @media (max-width: 768px) {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.75rem;
+      border-radius: 4px;
+    }
 
     &:hover {
       background-color: darken(#86A69D, 10%);
