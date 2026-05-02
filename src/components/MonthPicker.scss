@@ -1,0 +1,123 @@
+.month-picker {
+  background: #fff;
+  border-bottom: 1px solid #e6e8ec;
+  padding: 0.4rem 0.75rem 0.5rem;
+
+  .year-row,
+  .month-row {
+    display: flex;
+    gap: 0.4rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+
+    &::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #d6dae0;
+      border-radius: 2px;
+    }
+  }
+
+  .year-row {
+    margin-bottom: 0.4rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .year-pill {
+    flex: 0 0 auto;
+    padding: 0.25rem 0.7rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #6b7079;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      color: #1f2328;
+      background: #f5f6f8;
+    }
+
+    &.active {
+      background: #1f2328;
+      color: #fff;
+      border-color: #1f2328;
+    }
+  }
+
+  .month-pill {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid #d6dae0;
+    background: #fff;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    color: #1f2328;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: #f5f6f8;
+    }
+
+    &.active {
+      background: #1f2328;
+      color: #fff;
+      border-color: #1f2328;
+
+      .month-pill-count {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+      }
+    }
+
+    &.locked:not(.active) {
+      background: #f8f9fb;
+      color: #6b7079;
+    }
+
+    .lock-mark {
+      font-size: 0.75rem;
+    }
+
+    .month-pill-label {
+      font-weight: 500;
+    }
+
+    .month-pill-count {
+      background: #e6e8ec;
+      color: #4a5159;
+      padding: 0.05rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.35rem 0.5rem 0.5rem;
+
+    .month-pill {
+      padding: 0.4rem 0.625rem;
+      font-size: 0.825rem;
+    }
+
+    .year-pill {
+      padding: 0.2rem 0.6rem;
+      font-size: 0.75rem;
+    }
+  }
+}

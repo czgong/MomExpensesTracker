@@ -4,6 +4,8 @@ import { FaPlus, FaCheck, FaTimes } from 'react-icons/fa';
 import API_URL from './config';
 import BottomTabBar from './components/BottomTabBar';
 import ReportsView from './components/ReportsView';
+import BalancesView from './components/BalancesView';
+import MonthPicker from './components/MonthPicker';
 
 // App successfully deployed and working!
 
@@ -42,7 +44,6 @@ function App() {
   const [editingParticipants, setEditingParticipants] = useState({});
   
   // View toggle state - true for cards, false for table
-  const [isCardView, setIsCardView] = useState(true);
   
   // Main tab state - 'expenses', 'reports', or 'settings'
   const [activeMainTab, setActiveMainTab] = useState('expenses');
@@ -51,8 +52,6 @@ function App() {
   const [isMobile, setIsMobile] = useState(false);
   const [expandedRowId, setExpandedRowId] = useState(null);
   const [savingExpenses, setSavingExpenses] = useState({});
-  const [showMobileTimeline, setShowMobileTimeline] = useState(false);
-  
   // Delete confirmation modal states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState(null);
@@ -70,11 +69,6 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       // Clear expansion state when switching between mobile and desktop
       if (wasMobile !== nowMobile) {
         setExpandedRowId(null);
-        // Close mobile timeline sheet when switching to desktop
-        if (!nowMobile) {
-          setShowMobileTimeline(false);
-          document.body.style.overflow = '';
-        }
       }
     };
     
@@ -102,27 +96,7 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     return expandedRowId === expenseId;
   };
 
-  // Mobile timeline handlers
-  const toggleMobileTimeline = () => {
-    const newValue = !showMobileTimeline;
-    setShowMobileTimeline(newValue);
-    
-    // Prevent body scroll when sheet is open
-    if (newValue) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-  };
-
-  const handleMobileMonthSelect = (monthKey) => {
-    setActiveMonthTab(monthKey);
-    setShowMobileTimeline(false);
-    // Restore body scroll
-    document.body.style.overflow = '';
-  };
-
-  // Function to fix rounding issues to ensure percentages sum to exactly 100
+// Function to fix rounding issues to ensure percentages sum to exactly 100
   const fixRoundingIssues = (people) => {
     const total = people.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0);
     const diff = 100 - total;
@@ -463,13 +437,22 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
       alert("Please select a person for this expense.");
       return;
     }
-    
+
     if (!newExpense.cost || parseFloat(newExpense.cost) <= 0) {
       alert("Please enter a valid cost amount.");
       return;
     }
-    
-    
+
+    // Block adding to a locked month
+    if (newExpense.date) {
+      const [y, m] = newExpense.date.split('-');
+      const targetMonthKey = `${y}-${m}`;
+      if (monthStatuses[targetMonthKey]?.locked) {
+        alert(`${targetMonthKey} is locked. Pick a date in an unlocked month.`);
+        return;
+      }
+    }
+
     fetch(`${API_URL}/api/data`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -805,24 +788,50 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   // Calculate total cost for the active month
   const monthTotalCost = activeMonthExpenses.reduce((sum, expense) => sum + Number(expense.cost), 0).toFixed(2);
   
-  // Calculate balances whenever active month, expenses, or participants change
+  // Calculate balances whenever active month, expenses, or participants change.
+  // For locked months, settlements come from the stored `payments` rows so the
+  // in-month table matches the Outstanding Balances banner exactly.
   useEffect(() => {
-    if (activeMonthTab && expenses.length > 0) {
-      const currentMonthTabs = getMonthTabs(expenses);
-      const activeMonthData = currentMonthTabs.find(month => month.key === activeMonthTab);
-      if (activeMonthData) {
-        const summary = calculateMonthlyBalances(activeMonthData.expenses);
-        setMonthlySummary({
-          month: activeMonthData.name,
-          key: activeMonthData.key,
-          ...summary
-        });
+    if (!activeMonthTab || expenses.length === 0) return;
+    const currentMonthTabs = getMonthTabs(expenses);
+    const activeMonthData = currentMonthTabs.find(month => month.key === activeMonthTab);
+    if (!activeMonthData) return;
 
-        // Fetch payment statuses for this month
-        fetchPaymentStatuses(activeMonthData.key);
-      }
+    const summary = calculateMonthlyBalances(activeMonthData.expenses);
+    const isLocked = monthStatuses[activeMonthData.key]?.locked;
+
+    if (isLocked) {
+      fetch(`${API_URL}/api/payments/${activeMonthData.key}`)
+        .then(r => (r.ok ? r.json() : {}))
+        .then(payments => {
+          setPaymentStatus(prev => ({ ...prev, ...payments }));
+          const storedSettlements = Object.entries(payments)
+            .filter(([, p]) => p && p.from_person_id != null && p.to_person_id != null)
+            .map(([id, p]) => ({
+              id,
+              from: persons.find(x => x.id === p.from_person_id)?.name || 'Unknown',
+              fromId: p.from_person_id,
+              to: persons.find(x => x.id === p.to_person_id)?.name || 'Unknown',
+              toId: p.to_person_id,
+              amount: p.amount,
+            }));
+          setMonthlySummary({
+            month: activeMonthData.name,
+            key: activeMonthData.key,
+            ...summary,
+            settlements: storedSettlements,
+          });
+        })
+        .catch(error => console.error('Error fetching locked-month payments:', error));
+    } else {
+      setMonthlySummary({
+        month: activeMonthData.name,
+        key: activeMonthData.key,
+        ...summary
+      });
+      fetchPaymentStatuses(activeMonthData.key);
     }
-  }, [activeMonthTab, expenses, participants]);
+  }, [activeMonthTab, expenses, participants, monthStatuses, persons]);
 
   // Fetch outstanding balances when expenses, participants, active month, or month statuses change
   useEffect(() => {
@@ -853,9 +862,14 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
   
   // Toggle edit mode for all participants
 const toggleAllPercentEdit = (editing) => {
-  const newEditState = participants.reduce((map, p) => ({ 
-    ...map, 
-    [p.id]: editing 
+  if (editing && monthStatuses[activeMonthTab]?.locked) {
+    alert('This month is locked. Cannot edit percentage shares.');
+    return;
+  }
+
+  const newEditState = participants.reduce((map, p) => ({
+    ...map,
+    [p.id]: editing
   }), {});
   
   setEditingParticipants(newEditState);
@@ -1071,9 +1085,8 @@ const cancelPercentEdit = () => {
       const monthExpenses = monthData.expenses;
       const totalExpenses = monthExpenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
 
-      // Calculate settlements using current month participants
-      // Note: If this is an old month being completed now, it will use current participant settings
-      const monthSummary = calculateMonthlyBalancesForMonth(monthExpenses, monthKey);
+      // Settlements are computed from the month's own saved shares.
+      const monthSummary = await calculateMonthlyBalancesForMonth(monthExpenses, monthKey);
       if (!monthSummary || !monthSummary.settlements) {
         alert('Unable to calculate settlements for this month');
         return;
@@ -1084,14 +1097,12 @@ const cancelPercentEdit = () => {
         return;
       }
 
-      // Create payment records for all settlements
+      // Create payment records for all settlements. Use the IDs the calculator
+      // already produced — name lookups against `participants` would re-introduce
+      // the active-tab dependency we just fixed.
       const settlementPromises = monthSummary.settlements.map(settlement => {
-        // Find person IDs from participant names
-        const fromPerson = participants.find(p => p.name === settlement.from);
-        const toPerson = participants.find(p => p.name === settlement.to);
-
-        if (!fromPerson || !toPerson) {
-          console.error('Could not find person IDs for settlement:', settlement);
+        if (settlement.fromId == null || settlement.toId == null) {
+          console.error('Settlement missing person IDs:', settlement);
           return null;
         }
 
@@ -1101,8 +1112,8 @@ const cancelPercentEdit = () => {
           body: JSON.stringify({
             paymentKey: settlement.id,
             monthKey: monthKey,
-            fromPersonId: fromPerson.id,
-            toPersonId: toPerson.id,
+            fromPersonId: settlement.fromId,
+            toPersonId: settlement.toId,
             amount: settlement.amount,
             paid: false // Default to unpaid when completing month
           })
@@ -1161,17 +1172,11 @@ const cancelPercentEdit = () => {
         return;
       }
 
-      // Get current month key
-      const currentMonthKey = activeMonthTab || monthTabs[0]?.key;
+      // All locked months are candidates — outstanding balance is a global
+      // view, not relative to which month tab happens to be active.
+      const lockedMonths = monthTabs.filter(month => monthStatuses[month.key]?.locked);
 
-      // Get all months before the current month that are locked/completed
-      const previousMonths = monthTabs.filter(month => {
-        const isBeforeCurrent = month.key < currentMonthKey;
-        const isLocked = monthStatuses[month.key]?.locked || false;
-        return isBeforeCurrent && isLocked; // Only show locked months
-      });
-
-      if (previousMonths.length === 0) {
+      if (lockedMonths.length === 0) {
         setOutstandingBalances([]);
         return;
       }
@@ -1179,7 +1184,7 @@ const cancelPercentEdit = () => {
       const outstandingSettlements = [];
 
       // For each previous locked month, fetch payment records
-      for (const month of previousMonths) {
+      for (const month of lockedMonths) {
         // Fetch payment statuses for this month
         const response = await fetch(`${API_URL}/api/payments/${month.key}`);
         let monthPayments = {};
@@ -1188,33 +1193,33 @@ const cancelPercentEdit = () => {
           monthPayments = await response.json();
         }
 
-        // Only show settlements that have database records (from month completion)
-        // and are unpaid
+        // Include all settlements from locked months — paid and unpaid.
+        // Paid rows act as the audit trail and can be un-checked to revert.
         Object.entries(monthPayments).forEach(([paymentKey, paymentData]) => {
-          if (!paymentData.paid) {
-            // Find person names from IDs
-            const fromPerson = participants.find(p => p.id === paymentData.from_person_id);
-            const toPerson = participants.find(p => p.id === paymentData.to_person_id);
+          const fromPerson = participants.find(p => p.id === paymentData.from_person_id);
+          const toPerson = participants.find(p => p.id === paymentData.to_person_id);
 
-            if (fromPerson && toPerson) {
-              outstandingSettlements.push({
-                id: paymentKey,
-                from: fromPerson.name,
-                to: toPerson.name,
-                amount: paymentData.amount,
-                monthKey: month.key,
-                monthName: month.name,
-                updated_at: paymentData.updated_at,
-                created_at: paymentData.created_at
-              });
-            } else {
-              console.warn(`Outstanding balance skipped: Could not find participant for payment ${paymentKey} in ${month.key}`, {
-                from_person_id: paymentData.from_person_id,
-                to_person_id: paymentData.to_person_id,
-                fromPerson,
-                toPerson
-              });
-            }
+          if (fromPerson && toPerson) {
+            outstandingSettlements.push({
+              id: paymentKey,
+              from: fromPerson.name,
+              fromId: paymentData.from_person_id,
+              to: toPerson.name,
+              toId: paymentData.to_person_id,
+              amount: paymentData.amount,
+              paid: !!paymentData.paid,
+              monthKey: month.key,
+              monthName: month.name,
+              updated_at: paymentData.updated_at,
+              created_at: paymentData.created_at
+            });
+          } else {
+            console.warn(`Outstanding balance skipped: Could not find participant for payment ${paymentKey} in ${month.key}`, {
+              from_person_id: paymentData.from_person_id,
+              to_person_id: paymentData.to_person_id,
+              fromPerson,
+              toPerson
+            });
           }
         });
       }
@@ -1228,13 +1233,17 @@ const cancelPercentEdit = () => {
   };
 
   // Helper function to calculate balances for a specific month (similar to calculateMonthlyBalances but doesn't use current participants)
-  const calculateMonthlyBalancesForMonth = (monthExpenses, monthKey) => {
+  const calculateMonthlyBalancesForMonth = async (monthExpenses, monthKey) => {
     if (!monthExpenses || monthExpenses.length === 0) return null;
 
-    // We need to get the participants for this specific month
-    // For now, use current participants as a fallback
-    // TODO: This should ideally fetch the month-specific participants
-    const monthParticipants = participants.length > 0 ? participants : [];
+    // Load per-month shares so locking always uses that month's actual shares,
+    // not whatever the global `participants` state happens to hold.
+    const shares = await loadMonthlyShares(monthKey, persons);
+    const monthParticipants = persons.map(p => ({
+      id: p.id,
+      name: p.name,
+      percentShare: shares[p.id] != null ? parseFloat(shares[p.id]) : (100 / persons.length),
+    }));
 
     if (monthParticipants.length === 0) return null;
 
@@ -1374,178 +1383,108 @@ const cancelPercentEdit = () => {
       </header>
       
       <div className="main-layout">
-        {/* Timeline Navigation - Responsive */}
-        {isMobile ? (
-          // Mobile Timeline - Bottom Sheet Style
-          <>
-            {monthTabs.length > 0 && (
-              <div className="mobile-timeline-header">
-                <button 
-                  className="mobile-month-selector"
-                  onClick={toggleMobileTimeline}
-                >
-                  <div className="selected-month-info">
-                    <span className="month-icon">📅</span>
-                    <div className="month-details">
-                      <div className="month-name">
-                        {monthTabs.find(m => m.key === activeMonthTab)?.name || 'Select Month'}
-                      </div>
-                      <div className="month-summary">
-                        {(() => {
-                          const activeMonth = monthTabs.find(m => m.key === activeMonthTab);
-                          if (activeMonth && activeMonth.expenses.length > 0) {
-                            const count = activeMonth.expenses.length;
-                            const total = activeMonth.expenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
-                            return `${count} expenses • $${total.toFixed(0)}`;
-                          }
-                          return 'Tap to browse months';
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                  <span className={`chevron ${showMobileTimeline ? 'up' : 'down'}`}>▼</span>
-                </button>
-              </div>
-            )}
-            
-            {/* Mobile Timeline Bottom Sheet */}
-            {showMobileTimeline && (
-              <>
-                <div className="mobile-timeline-overlay" onClick={() => {
-                  setShowMobileTimeline(false);
-                  document.body.style.overflow = '';
-                }} />
-                <div className="mobile-timeline-sheet">
-                  <div className="sheet-header">
-                    <h3>Select Month</h3>
-                    <button 
-                      className="sheet-close"
-                      onClick={() => {
-                        setShowMobileTimeline(false);
-                        document.body.style.overflow = '';
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="sheet-content">
-                    {monthTabs.map((month) => {
-                      const isActive = activeMonthTab === month.key;
-                      const expenseCount = month.expenses.length;
-                      const totalAmount = month.expenses.reduce((sum, exp) => sum + parseFloat(exp.cost || 0), 0);
-                      const isLocked = monthStatuses[month.key]?.locked || false;
-
-                      return (
-                        <div
-                          key={month.key}
-                          className={`mobile-month-item ${isActive ? 'active' : ''} ${isLocked ? 'locked' : ''}`}
-                          onClick={() => handleMobileMonthSelect(month.key)}
-                        >
-                          <div className="month-info">
-                            <div className="month-name">
-                              {month.name}
-                              {isLocked && <span className="lock-icon" title="Month is locked">🔒</span>}
-                            </div>
-                            {expenseCount > 0 ? (
-                              <div className="month-stats">
-                                <span className="expense-count">{expenseCount} expenses</span>
-                                <span className="expense-total">${totalAmount.toFixed(0)}</span>
-                              </div>
-                            ) : (
-                              <div className="month-empty">No expenses</div>
-                            )}
-                          </div>
-                          {isActive && <div className="active-indicator">✓</div>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
-          </>
-        ) : null}
-        
         {/* Main Content Area */}
         <div className="content-area">
           {activeMainTab === 'expenses' ? (
-            <>
-              {/* Outstanding Balance Banner */}
-              {outstandingBalances.length > 0 && (
-                <div className="outstanding-balance-banner">
-                  <div className="banner-icon">⚠️</div>
-                  <div className="banner-content">
-                    <h3>Outstanding Balances from Previous Months</h3>
-                    <p>
-                      {(() => {
-                        // Calculate total outstanding per person
-                        const totals = {};
-                        outstandingBalances.forEach(settlement => {
-                          if (!totals[settlement.from]) {
-                            totals[settlement.from] = { owes: 0, owed: 0 };
-                          }
-                          if (!totals[settlement.to]) {
-                            totals[settlement.to] = { owes: 0, owed: 0 };
-                          }
-                          totals[settlement.from].owes += settlement.amount;
-                          totals[settlement.to].owed += settlement.amount;
-                        });
+            <div className={monthStatuses[activeMonthTab]?.locked ? 'activity-locked-mode' : ''}>
+              <MonthPicker
+                monthTabs={monthTabs}
+                activeMonthTab={activeMonthTab}
+                onMonthClick={setActiveMonthTab}
+                monthLockStatus={monthStatuses}
+              />
 
-                        // Build summary text
-                        const summaries = Object.entries(totals)
-                          .filter(([name, amounts]) => amounts.owes > 0.01 || amounts.owed > 0.01)
-                          .map(([name, amounts]) => {
-                            if (amounts.owes > 0.01) {
-                              return `${name} owes $${amounts.owes.toFixed(2)}`;
-                            } else if (amounts.owed > 0.01) {
-                              return `${name} is owed $${amounts.owed.toFixed(2)}`;
-                            }
-                            return null;
-                          })
-                          .filter(Boolean);
-
-                        return summaries.join(' • ');
-                      })()}
-                    </p>
-                  </div>
-                  <button
-                    className="banner-details-btn"
-                    onClick={() => {
-                      const detailsSection = document.getElementById('outstanding-balances-section');
-                      if (detailsSection) {
-                        detailsSection.scrollIntoView({ behavior: 'smooth' });
-                      }
-                    }}
-                  >
-                    View Details ↓
-                  </button>
+              {monthStatuses[activeMonthTab]?.locked && (
+                <div className="activity-locked-banner">
+                  <span className="activity-locked-icon" aria-hidden="true">🔒</span>
+                  <span className="activity-locked-text">
+                    {monthTabs.find(m => m.key === activeMonthTab)?.name} is locked.
+                    Settlements are frozen — no edits, additions, or share changes.
+                  </span>
                 </div>
               )}
 
-              {/* Expenses Content */}
-          {/* View Toggle Control */}
-          <div className="view-controls">
-            <div className="view-toggle-wrapper">
-              <span className="view-label">View:</span>
-              <div className="view-toggle">
-                <button 
-                  className={`toggle-btn ${isCardView ? 'active' : ''}`}
-                  onClick={() => setIsCardView(true)}
-                >
-                  <span className="toggle-icon">⊞</span>
-                  Cards
-                </button>
-                <button 
-                  className={`toggle-btn ${!isCardView ? 'active' : ''}`}
-                  onClick={() => setIsCardView(false)}
-                >
-                  <span className="toggle-icon">☰</span>
-                  List
-                </button>
+              <div className="costs-summary">
+                <div className="month-cost">
+                  <span className="costs-label">This month</span>
+                  <span className="costs-value">${monthTotalCost}</span>
+                </div>
+                <div className="total-cost">
+                  <span className="costs-label">All time</span>
+                  <span className="costs-value">${totalCost}</span>
+                </div>
               </div>
-            </div>
-          </div>
-        
+
+              <details className="shares-panel">
+                <summary>
+                  <span className="shares-panel-title">Sharing percentages</span>
+                  <span className="shares-panel-summary">
+                    {participants.map(p => `${p.name} ${p.percentShare}%`).join(' • ')}
+                  </span>
+                </summary>
+                <div className="shares-panel-body">
+                  <div className="participants-header">
+                    {isAnyParticipantEditing ? (
+                      <div className="edit-actions">
+                        <button onClick={savePercentages} className="save-button" title="Save changes">
+                          ✓ Save
+                        </button>
+                        <button onClick={cancelPercentEdit} className="cancel-button" title="Cancel changes">
+                          ✕ Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => toggleAllPercentEdit(true)}
+                        className="edit-button"
+                        title={monthStatuses[activeMonthTab]?.locked ? 'Month is locked' : 'Edit percentages'}
+                        disabled={monthStatuses[activeMonthTab]?.locked}
+                      >
+                        ✏️ Edit
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="participants-grid">
+                    {participants.map(person => (
+                      <div key={person.id} className="participant-card">
+                        <div className="participant-info">
+                          <span className="participant-name">{person.name}</span>
+                          <div className="participant-percentage">
+                            {editingParticipants[person.id] ? (
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={person.percentShare}
+                                onChange={(e) => handlePercentChange(person.id, e.target.value)}
+                                className="percent-input"
+                              />
+                            ) : (
+                              <span className="percent-value">{person.percentShare}%</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {isAnyParticipantEditing && (
+                    <div className={
+                      Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) <= 0.1
+                        ? "total-percentage valid-total"
+                        : "total-percentage invalid-total"
+                    }>
+                      <strong>Total: {participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0).toFixed(1)}%</strong>
+                      {Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) > 0.1 && (
+                        <span className="warning"> ⚠️ Must equal 100%</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </details>
+
         {error && (
           <div className="error-message">
             {error}
@@ -1560,134 +1499,6 @@ const cancelPercentEdit = () => {
             <div className="loading-spinner" style={{margin: '0 auto 20px'}}></div>
             <p>Loading expenses...</p>
           </div>
-        ) : isCardView ? (
-          <div className="expenses-grid">
-          {activeMonthExpenses.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">💳</div>
-              <h3>No expenses yet</h3>
-              <p>Add your first expense to get started</p>
-            </div>
-          ) : (
-            activeMonthExpenses.map((expense, cardIndex) => {
-              // Find the index in the original expenses array
-              const index = expenses.findIndex(e => e.id === expense.id);
-              
-              
-              return (
-                <div key={expense.id || index} className={`expense-card ${expense.isEditing ? 'editing' : ''}`}>
-                  <div className="card-header">
-                    <div className="cost-section">
-                      {expense.isEditing ? (
-                        <input
-                          type="number"
-                          value={expense.cost}
-                          onChange={(e) => handleEditChange(index, 'cost', e.target.value)}
-                          className="cost-input"
-                          aria-label="Expense cost"
-                          placeholder="0.00"
-                        />
-                      ) : (
-                        <span className="cost-display">${expense.cost}</span>
-                      )}
-                    </div>
-                    <div className="card-actions">
-                      {expense.isEditing ? (
-                        <>
-                          <button 
-                            onClick={() => saveExpense(index)} 
-                            className="save-btn"
-                            disabled={savingExpenses[expense.id]}
-                          >
-                            {savingExpenses[expense.id] ? '⏳' : <FaCheck />}
-                          </button>
-                          <button 
-                            onClick={() => toggleEdit(index, false)} 
-                            className="cancel-btn"
-                            disabled={savingExpenses[expense.id]}
-                          >
-                            <FaTimes />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => toggleEdit(index, true)} className="edit-btn">
-                            Edit
-                          </button>
-                          <button onClick={() => deleteExpense(index)} className="delete-btn">
-                            Delete
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="card-body">
-                    <div className="field-group">
-                      <label>Purchased by</label>
-                      {expense.isEditing ? (
-                        <select
-                          value={expense.person_id}
-                          onChange={(e) => handleEditChange(index, 'person_id', e.target.value)}
-                          className="person-select"
-                          aria-label="Person who purchased"
-                        >
-                          {persons.map((person) => (
-                            <option key={person.id} value={person.id}>
-                              {person.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="person-name">{expense.purchasedBy}</span>
-                      )}
-                    </div>
-                    
-                    <div className="field-group">
-                      <label>Date</label>
-                      {expense.isEditing ? (
-                        <input
-                          type="date"
-                          value={expense.date}
-                          onChange={(e) => handleEditChange(index, 'date', e.target.value)}
-                          className="date-input"
-                          aria-label="Expense date"
-                        />
-                      ) : (
-                        <span className="date-display">{expense.date}</span>
-                      )}
-                    </div>
-                    
-                    <div className="field-group">
-                      <label>Comment</label>
-                      {expense.isEditing ? (
-                        <input
-                          type="text"
-                          value={expense.comment}
-                          onChange={(e) => handleEditChange(index, 'comment', e.target.value)}
-                          className="comment-input"
-                          placeholder="Add a note..."
-                          aria-label="Expense comment"
-                        />
-                      ) : (
-                        <span className="comment-text">{expense.comment}</span>
-                      )}
-                    </div>
-                    
-                    {expense.created_at && (
-                      <div className="field-group">
-                        <label>Added</label>
-                        <span className="timestamp-display">
-                          {formatTimestamp(expense.created_at)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
         ) : isMobile ? (
           // Mobile Progressive Disclosure Layout
           <div className="expenses-mobile-view">
@@ -1740,21 +1551,19 @@ const cancelPercentEdit = () => {
                             )}
                           </div>
                         </div>
-                        <div className="mobile-expense-person">
+                        <div className="mobile-expense-comment">
                           {expense.isEditing ? (
-                            <select
-                              value={expense.person_id}
-                              onChange={(e) => handleEditChange(index, 'person_id', e.target.value)}
-                              className="mobile-select"
-                            >
-                              {persons.map((person) => (
-                                <option key={person.id} value={person.id}>
-                                  {person.name}
-                                </option>
-                              ))}
-                            </select>
+                            <input
+                              type="text"
+                              value={expense.comment}
+                              onChange={(e) => handleEditChange(index, 'comment', e.target.value)}
+                              className="mobile-input comment-input"
+                              placeholder="Add a note…"
+                            />
                           ) : (
-                            <span className="person-name">{expense.purchasedBy}</span>
+                            <span className="comment-text">
+                              {expense.comment || <em className="comment-empty">No comment</em>}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -1769,17 +1578,21 @@ const cancelPercentEdit = () => {
                     {(isExpanded || expense.isEditing) && (
                       <div className="mobile-expense-details">
                         <div className="mobile-detail-row">
-                          <span className="detail-label">Comment:</span>
+                          <span className="detail-label">Purchased by:</span>
                           {expense.isEditing ? (
-                            <input
-                              type="text"
-                              value={expense.comment}
-                              onChange={(e) => handleEditChange(index, 'comment', e.target.value)}
-                              className="mobile-input comment-input"
-                              placeholder="Add a note..."
-                            />
+                            <select
+                              value={expense.person_id}
+                              onChange={(e) => handleEditChange(index, 'person_id', e.target.value)}
+                              className="mobile-select"
+                            >
+                              {persons.map((person) => (
+                                <option key={person.id} value={person.id}>
+                                  {person.name}
+                                </option>
+                              ))}
+                            </select>
                           ) : (
-                            <span className="detail-value">{expense.comment}</span>
+                            <span className="detail-value">{expense.purchasedBy}</span>
                           )}
                         </div>
 
@@ -1958,66 +1771,6 @@ const cancelPercentEdit = () => {
           </div>
         )}
         
-          {/* Outstanding Balances Section */}
-          {outstandingBalances.length > 0 && (
-            <div id="outstanding-balances-section" className="sharing-section outstanding-balances">
-              <h3>Outstanding Balances from Previous Months</h3>
-              <p className="section-description">
-                These are unpaid settlements from previous months. To mark a payment as paid, navigate to that specific month and update the status there.
-              </p>
-
-              <table className="settlements-table outstanding-table">
-                <thead>
-                  <tr>
-                    <th>Month</th>
-                    <th>From</th>
-                    <th>To</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {outstandingBalances.map((settlement, index) => (
-                    <tr key={`${settlement.monthKey}-${settlement.id}`} className="unpaid-settlement outstanding-row">
-                      <td className="month-cell">{settlement.monthName}</td>
-                      <td>{settlement.from}</td>
-                      <td>{settlement.to}</td>
-                      <td>${settlement.amount.toFixed(2)}</td>
-                      <td className="settlement-status-readonly">
-                        <span className="status-badge unpaid-badge">Unpaid</span>
-                      </td>
-                      <td className="action-cell">
-                        <button
-                          className="view-month-btn"
-                          onClick={() => {
-                            setActiveMonthTab(settlement.monthKey);
-                            // Scroll to top after month change
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                        >
-                          View Month
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div className="outstanding-summary">
-                <p>
-                  <strong>{outstandingBalances.length} unpaid settlement{outstandingBalances.length !== 1 ? 's' : ''}</strong> from previous months
-                </p>
-                <p className="total-outstanding">
-                  Total outstanding: ${outstandingBalances.reduce((sum, s) => sum + s.amount, 0).toFixed(2)}
-                </p>
-                <p className="help-text">
-                  💡 Tip: Click "View Month" to navigate to that month and mark the payment as paid.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Monthly Balance Breakdown Section */}
           {monthlySummary && monthlySummary.balances && (
             <div className="sharing-section monthly-balance">
@@ -2054,104 +1807,39 @@ const cancelPercentEdit = () => {
                 </tbody>
               </table>
               
-              {/* Payment Settlements Section */}
-              {monthlySummary.settlements && monthlySummary.settlements.length > 0 && (
-                <>
-                  <h4>Payment Settlements</h4>
-                  <p className="settlement-info">Who needs to pay whom to settle all balances:</p>
-                  
-                  <table className="settlements-table">
-                    <thead>
-                      <tr>
-                        <th>From</th>
-                        <th>To</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {monthlySummary.settlements.map(settlement => (
-                        <tr key={settlement.id} className={paymentStatus[settlement.id]?.paid ? 'paid-settlement' : 'unpaid-settlement'}>
-                          <td>{settlement.from}</td>
-                          <td>{settlement.to}</td>
-                          <td>${settlement.amount.toFixed(2)}</td>
-                          <td className="settlement-status">
-                            <label className="checkbox-container">
-                              <input
-                                type="checkbox"
-                                checked={paymentStatus[settlement.id]?.paid || false}
-                                onChange={() => togglePaymentStatus(settlement, monthlySummary.key)}
-                                disabled={loadingPayments}
-                              />
-                              <span className="checkmark"></span>
-                              <div className="status-info">
-                                <span className="status-text">
-                                  {paymentStatus[settlement.id]?.paid ? 'Paid' : 'Unpaid'}
-                                </span>
-                                {paymentStatus[settlement.id]?.updated_at && (
-                                  <span className="timestamp">
-                                    {formatTimestamp(paymentStatus[settlement.id].updated_at)}
-                                  </span>
-                                )}
-                              </div>
-                            </label>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  
-                  {/* Settlement Summary */}
-                  <div className="settlement-summary">
-                    <p>
-                      <strong>
-                        {monthlySummary.settlements.filter(s => paymentStatus[s.id]?.paid).length} of {monthlySummary.settlements.length} payments completed
-                      </strong>
-                    </p>
-                    {monthlySummary.settlements.every(s => paymentStatus[s.id]?.paid) && (
-                      <p className="all-settled">🎉 All payments settled!</p>
-                    )}
-
-                    {/* Complete Month Button */}
-                    {!monthStatuses[monthlySummary.key]?.locked && (
-                      <div className="complete-month-section">
-                        <button
-                          className="complete-month-btn"
-                          onClick={() => completeMonth(monthlySummary.key)}
-                          disabled={loadingPayments}
-                        >
-                          {loadingPayments ? 'Processing...' : 'Complete Month'}
-                        </button>
-                        <p className="complete-month-info">
-                          Completing this month will lock it and create settlement records in the database.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Month Locked Indicator */}
-                    {monthStatuses[monthlySummary.key]?.locked && (
-                      <div className="month-locked-indicator">
-                        <div className="locked-badge">
-                          🔒 Month Completed
-                        </div>
-                        <p className="locked-info">
-                          This month was completed on {new Date(monthStatuses[monthlySummary.key].locked_at).toLocaleDateString()}.
-                          Expenses can no longer be added or edited.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </>
+              {monthlySummary.settlements && monthlySummary.settlements.length > 0
+                && !monthStatuses[monthlySummary.key]?.locked && (
+                <div className="complete-month-section">
+                  <button
+                    className="complete-month-btn"
+                    onClick={() => completeMonth(monthlySummary.key)}
+                    disabled={loadingPayments}
+                  >
+                    {loadingPayments ? 'Processing…' : 'Complete month'}
+                  </button>
+                  <p className="complete-month-info">
+                    Locks the month and writes settlement records. Manage who has paid in <strong>Balances</strong>.
+                  </p>
+                </div>
               )}
             </div>
           )}
           
-          {/* Display monthly and total costs */}
-          <div className="costs-summary">
-            <div className="month-cost">Current Month Total: ${monthTotalCost}</div>
-            <div className="total-cost">Overall Total: ${totalCost}</div>
-          </div>
-            </>
+            </div>
+          ) : activeMainTab === 'balances' ? (
+            <BalancesView
+              outstandingBalances={outstandingBalances}
+              loadingPayments={loadingPayments}
+              isMobile={isMobile}
+              onTogglePayment={async (settlement) => {
+                await togglePaymentStatus(settlement, settlement.monthKey);
+                fetchOutstandingBalances();
+              }}
+              onNavigateToMonth={(monthKey) => {
+                setActiveMonthTab(monthKey);
+                setActiveMainTab('expenses');
+              }}
+            />
           ) : activeMainTab === 'reports' ? (
             /* Reports Content */
             <ReportsView
@@ -2185,71 +1873,6 @@ const cancelPercentEdit = () => {
                   </button>
                 </div>
                 
-                {/* Sharing Percentages Section - will be moved from sidebar */}
-                <div className="settings-section">
-                  <div className="section-title">
-                    <h3>Sharing Percentages</h3>
-                    <p>Configure how expenses are shared for <strong>{monthlySummary?.month || 'current month'}</strong></p>
-                  </div>
-                  
-                  <div className="settings-participants">
-                    <div className="participants-header">
-                      {isAnyParticipantEditing ? (
-                        <div className="edit-actions">
-                          <button onClick={savePercentages} className="save-button" title="Save changes">
-                            ✓ Save Changes
-                          </button>
-                          <button onClick={cancelPercentEdit} className="cancel-button" title="Cancel changes">
-                            ✕ Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button onClick={() => toggleAllPercentEdit(true)} className="edit-button" title="Edit percentages">
-                          ✏️ Edit Percentages
-                        </button>
-                      )}
-                    </div>
-                    
-                    <div className="participants-grid">
-                      {participants.map(person => (
-                        <div key={person.id} className="participant-card">
-                          <div className="participant-info">
-                            <span className="participant-name">{person.name}</span>
-                            <div className="participant-percentage">
-                              {editingParticipants[person.id] ? (
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="0.01"
-                                  value={person.percentShare}
-                                  onChange={(e) => handlePercentChange(person.id, e.target.value)}
-                                  className="percent-input"
-                                />
-                              ) : (
-                                <span className="percent-value">{person.percentShare}%</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* Show total percentage during editing */}
-                    {isAnyParticipantEditing && (
-                      <div className={
-                        Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) <= 0.1 
-                          ? "total-percentage valid-total" 
-                          : "total-percentage invalid-total"
-                      }>
-                        <strong>Total: {participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0).toFixed(1)}%</strong>
-                        {Math.abs(participants.reduce((sum, p) => sum + parseFloat(p.percentShare || 0), 0) - 100) > 0.1 && (
-                          <span className="warning"> ⚠️ Must equal 100%</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
           ) : null}
@@ -2261,31 +1884,32 @@ const cancelPercentEdit = () => {
         activeTab={activeMainTab}
         onTabChange={setActiveMainTab}
         isMobile={isMobile}
-        timelineData={{
-          monthTabs,
-          activeMonthTab,
-          onMonthClick: setActiveMonthTab
-        }}
+        tabBadges={{ balances: outstandingBalances.some(b => !b.paid) }}
       />
       
-      {/* Floating plus button for adding expenses - only show on expenses tab */}
-      {activeMainTab === 'expenses' && (
-        <button
-          className="PlusButton"
-          onClick={() => {
-            if (monthStatuses[activeMonthTab]?.locked) {
-              alert('This month is locked. Cannot add expenses to a completed month.');
-              return;
-            }
-            setShowAddDialog(true);
-          }}
-          disabled={monthStatuses[activeMonthTab]?.locked}
-          aria-label="Add Expense"
-          title={monthStatuses[activeMonthTab]?.locked ? 'Month is locked' : 'Add Expense'}
-        >
-          <FaPlus />
-        </button>
-      )}
+      {/* Floating plus button — adds to today's month, regardless of which tab is active */}
+      {activeMainTab === 'expenses' && (() => {
+        const today = new Date();
+        const todayMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        const todayLocked = monthStatuses[todayMonthKey]?.locked;
+        return (
+          <button
+            className="PlusButton"
+            onClick={() => {
+              if (todayLocked) {
+                alert(`${todayMonthKey} is locked. Cannot add expenses for today.`);
+                return;
+              }
+              setShowAddDialog(true);
+            }}
+            disabled={todayLocked}
+            aria-label="Add Expense"
+            title={todayLocked ? `${todayMonthKey} is locked` : 'Add Expense'}
+          >
+            <FaPlus />
+          </button>
+        );
+      })()}
 
       {showAddDialog && (
         <div className="dialog-overlay">

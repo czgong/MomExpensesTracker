@@ -58,13 +58,13 @@ select:focus {
 /* Header container - now just for the top section */
 .app-header {
   background-color: $background-color;
-  padding: 2rem 2rem 1.5rem;
+  padding: 0.875rem 1rem;
   text-align: center;
-  border-bottom: 1px solid rgba($primary-color, 0.1);
+  border-bottom: 1px solid rgba($primary-color, 0.12);
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 /* Main layout container */
@@ -625,64 +625,46 @@ select:focus {
   }
 }
 
-/* Header with Large Photo */
+/* Header with photo + title — slim, single row */
 .header-content {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 30px;
-  margin-bottom: 1rem;
+  gap: 0.625rem;
+  margin: 0;
   padding: 0;
-  
-  @media (max-width: 768px) {
-    flex-direction: column;
-    gap: 20px;
-  }
-  
+
   .header-photo-large {
-    width: 120px;
-    height: 120px;
+    width: 88px;
+    height: 88px;
     border-radius: 50%;
     object-fit: cover;
-    border: 4px solid $primary-color;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-    transition: transform 0.3s ease;
-    
-    &:hover {
-      transform: scale(1.05);
-    }
-    
+    border: 3px solid $primary-color;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+    flex-shrink: 0;
+
     @media (max-width: 768px) {
-      width: 100px;
-      height: 100px;
+      width: 72px;
+      height: 72px;
+      border-width: 2.5px;
     }
   }
 }
 
 .expenses-title {
-  font-size: clamp(2.8rem, 6vw, 4.2rem);
+  font-size: 1.75rem;
   color: $accent-color-2;
-  margin: 0 0 1.5rem 0;
-  font-weight: 800;
-  text-align: center;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-  background: linear-gradient(135deg, $accent-color-2, darken($accent-color-2, 15%));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  position: relative;
-  
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: -8px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 60px;
-    height: 3px;
-    background: linear-gradient(90deg, transparent, $accent-color-2, transparent);
-    border-radius: 2px;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  background: none;
+  -webkit-text-fill-color: $accent-color-2;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+
+  @media (max-width: 768px) {
+    font-size: 1.45rem;
   }
 }
 
@@ -850,80 +832,71 @@ select:focus {
   }
 }
 
-/* Outstanding Balance Banner */
+/* Outstanding Balance Banner — compact, summary only */
 .outstanding-balance-banner {
-  background: linear-gradient(135deg, #fff3cd 0%, #fff9e6 100%);
-  border: 2px solid #ffc107;
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin: 1rem 0 2rem;
+  background: #fff8e6;
+  border: 1px solid #f3d77a;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0.75rem;
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.15);
+  gap: 0.625rem;
+  box-shadow: none;
 
   .banner-icon {
-    font-size: 2.5rem;
+    font-size: 1rem;
     flex-shrink: 0;
   }
 
   .banner-content {
     flex: 1;
+    min-width: 0;
     text-align: left;
 
     h3 {
-      margin: 0 0 0.5rem 0;
-      color: #856404;
-      font-size: 1.2rem;
+      display: none;
     }
 
     p {
       margin: 0;
-      color: #856404;
-      font-size: 0.95rem;
-      line-height: 1.5;
+      color: #614c0a;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 
   .banner-details-btn {
-    background-color: #ffc107;
-    color: #856404;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
+    background-color: transparent;
+    color: #614c0a;
+    border: 1px solid #d4b657;
+    padding: 0.3rem 0.625rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
     white-space: nowrap;
+    flex-shrink: 0;
 
     &:hover {
-      background-color: #ffb300;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(255, 193, 7, 0.3);
+      background-color: #f3d77a;
     }
   }
 
   @media (max-width: 768px) {
-    flex-direction: column;
-    text-align: center;
-    padding: 1.25rem;
-    gap: 1rem;
+    padding: 0.5rem 0.625rem;
+    gap: 0.5rem;
+    margin: 0.5rem 0.625rem;
 
     .banner-content {
-      text-align: center;
-
-      h3 {
-        font-size: 1.1rem;
-      }
-
       p {
-        font-size: 0.9rem;
+        font-size: 0.8rem;
       }
     }
 
-    .banner-details-btn {
-      width: 100%;
-    }
   }
 }
 
@@ -1589,34 +1562,45 @@ select:focus {
 
 .costs-summary {
   display: flex;
-  justify-content: space-between;
-  width: 100%;
-  margin: 2rem 0;
-  max-width: none;
-  background-color: white;
-  padding: 20px 30px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  
-  @media (max-width: 768px) {
-    padding: 16px 20px;
-    margin: 1.5rem auto;
-    flex-direction: column;
-    gap: 8px;
-    text-align: center;
-  }
-  
-  .month-cost {
-    font-size: 1.1rem;
-    color: $secondary-color;
-    font-weight: bold;
-  }
-  
+  gap: 0.5rem;
+  margin: 0 0.75rem 0.75rem;
+  background: transparent;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+
+  .month-cost,
   .total-cost {
-    font-size: 1.1rem;
-    font-weight: bold;
-    color: $accent-color-2;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid #e6e8ec;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+
+    .costs-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #6b7079;
+      font-weight: 600;
+    }
+
+    .costs-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      margin-top: 0.1rem;
+    }
+  }
+
+  .month-cost .costs-value { color: $secondary-color; }
+  .total-cost .costs-value { color: $accent-color-2; }
+
+  @media (max-width: 768px) {
+    margin: 0 0.625rem 0.625rem;
   }
   
   .import-csv-button {
@@ -3657,29 +3641,8 @@ select:focus {
   }
   
   .app-header {
-    padding: 1rem 0.8rem;
-    position: relative;
-    
-    .header-content {
-      flex-direction: column;
-      gap: 12px;
-      
-      .header-photo-large {
-        width: 80px;
-        height: 80px;
-        border-width: 3px;
-      }
-    }
-    
-    .expenses-title {
-      font-size: clamp(2.2rem, 6vw, 3rem);
-      margin-bottom: 1rem;
-      
-      &::after {
-        width: 50px;
-        height: 2px;
-      }
-    }
+    padding: 0.5rem 0.75rem;
+    position: sticky;
   }
   
   .content-area {
@@ -4024,29 +3987,7 @@ select:focus {
   }
   
   .app-header {
-    padding: 0.75rem 1rem;
-    
-    .header-content {
-      gap: 8px;
-      
-      .header-photo-large {
-        width: 70px;
-        height: 70px;
-        border-width: 2px;
-      }
-    }
-    
-    .expenses-title {
-      font-size: clamp(2rem, 6vw, 2.5rem);
-      line-height: 1.1;
-      margin-bottom: 0.8rem;
-      
-      &::after {
-        width: 40px;
-        height: 2px;
-        bottom: -6px;
-      }
-    }
+    padding: 0.5rem 0.625rem;
   }
   
   .content-area {
@@ -4324,52 +4265,54 @@ select:focus {
 
 .mobile-expense-row {
   background: white;
-  border-radius: 12px;
-  margin-bottom: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  margin-bottom: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   overflow: hidden;
-  transition: all 0.3s ease;
-  
+  transition: all 0.2s ease;
+
   &.editing {
     border: 2px solid #007bff;
     box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
   }
-  
+
   &.expanded {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
   }
 }
 
 .mobile-expense-primary {
   display: flex;
   align-items: center;
-  padding: 16px;
+  padding: 8px 12px;
   cursor: pointer;
   user-select: none;
   transition: background-color 0.2s ease;
-  
+  min-height: 0;
+
   &:hover {
     background-color: #f8f9fa;
   }
-  
+
   .mobile-expense-main {
     flex: 1;
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
+    align-items: center;
+    gap: 10px;
   }
-  
+
   .mobile-expense-left {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
     flex-shrink: 0;
   }
-  
+
   .mobile-expense-cost {
     .cost-display {
-      font-size: 1.4rem;
+      font-size: 1rem;
       font-weight: 700;
       color: $primary-color;
       line-height: 1.2;
@@ -4388,8 +4331,8 @@ select:focus {
   
   .mobile-expense-date {
     .date-display {
-      font-size: 0.85rem;
-      color: #666;
+      font-size: 0.75rem;
+      color: #888;
       font-weight: 500;
     }
     
@@ -4432,15 +4375,15 @@ select:focus {
   }
   
   .mobile-expand-indicator {
-    margin-left: 12px;
+    margin-left: 6px;
     flex-shrink: 0;
-    
+
     .chevron {
       display: inline-block;
-      font-size: 0.9rem;
-      color: #666;
+      font-size: 0.7rem;
+      color: #999;
       transition: transform 0.3s ease;
-      
+
       &.expanded {
         transform: rotate(180deg);
       }
@@ -4449,7 +4392,7 @@ select:focus {
 }
 
 .mobile-expense-details {
-  padding: 0 16px 16px 16px;
+  padding: 4px 12px 10px;
   border-top: 1px solid #e9ecef;
   background: #f8f9fa;
   animation: slideDown 0.3s ease;
@@ -5326,6 +5269,130 @@ select:focus {
         opacity: 0.6;
         cursor: not-allowed;
       }
+    }
+  }
+}
+/* Activity tab: shares panel (relocated from Settings) */
+.shares-panel {
+  margin: 0.75rem;
+  background: #fff;
+  border: 1px solid #e6e8ec;
+  border-radius: 8px;
+  overflow: hidden;
+
+  > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    font-size: 0.9rem;
+
+    &::-webkit-details-marker { display: none; }
+
+    &::before {
+      content: '▸';
+      color: #888;
+      font-size: 0.75rem;
+      transition: transform 0.15s ease;
+    }
+
+    .shares-panel-title {
+      font-weight: 600;
+      color: #1f2328;
+      flex-shrink: 0;
+    }
+
+    .shares-panel-summary {
+      color: #6b7079;
+      font-size: 0.825rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &[open] > summary::before {
+    transform: rotate(90deg);
+  }
+
+  .shares-panel-body {
+    padding: 0.75rem 0.875rem 0.875rem;
+    border-top: 1px solid #eef0f3;
+
+    .participants-header {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 0.625rem;
+    }
+
+    .participants-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.5rem;
+    }
+  }
+}
+
+/* Activity tab: locked-month banner */
+.activity-locked-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0.75rem 0.75rem;
+  padding: 0.625rem 0.875rem;
+  background: #fff8e6;
+  border: 1px solid #f3d77a;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #614c0a;
+
+  .activity-locked-icon { font-size: 1rem; }
+  .activity-locked-text { flex: 1; }
+}
+
+.activity-locked-mode {
+  .expenses-grid,
+  .expenses-mobile-view,
+  .expenses-table-view {
+    opacity: 0.92;
+  }
+}
+
+/* Mobile expense row: comment in collapsed state */
+.mobile-expense-row {
+  .mobile-expense-comment {
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+    align-self: center;
+    overflow: hidden;
+
+    .comment-text {
+      font-size: 0.85rem;
+      color: #444;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .comment-empty {
+      color: #b8b8b8;
+      font-style: italic;
+      font-size: 0.8rem;
+    }
+
+    .comment-input {
+      width: 100%;
+      padding: 6px 10px;
+      border: 2px solid #007bff;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      background: white;
+      color: #333;
     }
   }
 }
