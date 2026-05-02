@@ -70,7 +70,6 @@ select:focus {
 /* Main layout container */
 .main-layout {
   display: flex;
-  min-height: calc(100vh - 200px);
   max-width: 100%;
   margin: 0;
 }
@@ -265,18 +264,19 @@ select:focus {
 .content-area {
   flex: 1;
   padding: 20px;
-  overflow-y: auto;
   min-width: 0; // Prevents flex item from overflowing
   width: 100%;
   max-width: none;
   margin: 0;
-  
+  // Body is the scroll container — keep overflow visible so the fixed
+  // bottom tab bar and FAB anchor to the viewport, not to this element.
+
   @media (max-width: 768px) {
-    padding: 15px;
+    padding: 15px 15px 80px; // bottom clears the fixed tab bar
   }
-  
+
   @media (max-width: 480px) {
-    padding: 10px;
+    padding: 10px 10px 80px;
   }
 }
 
@@ -3981,17 +3981,12 @@ select:focus {
 
 /* Enhanced mobile improvements for very small screens */
 @media (max-width: 480px) {
-  .main-layout {
-    min-height: 100vh;
-    padding-bottom: 90px; // Ensure space for fixed collapsed sidebar
-  }
-  
   .app-header {
     padding: 0.5rem 0.625rem;
   }
-  
+
   .content-area {
-    padding: 12px;
+    padding: 12px 12px 80px; // bottom clears the fixed tab bar
   }
   
   /* Compact timeline for very small screens */
