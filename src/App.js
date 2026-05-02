@@ -144,22 +144,26 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     }
   };
   
-  // Load percentage shares for a specific month
+  // Load percentage shares for a specific month.
+  // If the month has no record, inherit from the most recent month STRICTLY
+  // BEFORE this one — never from a later month, otherwise saving shares for a
+  // newer month would retroactively change every earlier unsaved month.
   const loadMonthlyShares = async (monthKey, personsData) => {
     try {
       const response = await fetch(`${API_URL}/api/monthly-shares/${monthKey}`);
       if (response.ok) {
         const monthlyShares = await response.json();
-        
-        // If no shares exist for this month, try to inherit from latest month
+
         if (Object.keys(monthlyShares).length === 0) {
-          const latestResponse = await fetch(`${API_URL}/api/latest-shares`);
-          if (latestResponse.ok) {
-            const latestShares = await latestResponse.json();
-            return latestShares;
+          const inheritResponse = await fetch(
+            `${API_URL}/api/latest-shares?before=${encodeURIComponent(monthKey)}`
+          );
+          if (inheritResponse.ok) {
+            const inherited = await inheritResponse.json();
+            return inherited;
           }
         }
-        
+
         return monthlyShares;
       }
     } catch (error) {

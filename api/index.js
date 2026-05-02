@@ -727,15 +727,24 @@ app.post('/api/month-status', async (req, res) => {
   }
 });
 
-// GET endpoint to get the most recent percentage shares (for inheritance)
+// GET endpoint to get the most recent percentage shares (for inheritance).
+// Optional ?before=YYYY-MM restricts to records strictly before that month,
+// so saving shares for a later month never retroactively changes earlier ones.
 app.get('/api/latest-shares', async (req, res) => {
   try {
-    // Get the most recent month with shares data
-    const { data: latestMonth, error: monthError } = await supabase
+    const { before } = req.query;
+
+    let query = supabase
       .from('monthly_shares')
       .select('month_key')
       .order('month_key', { ascending: false })
       .limit(1);
+
+    if (before) {
+      query = query.lt('month_key', before);
+    }
+
+    const { data: latestMonth, error: monthError } = await query;
 
     if (monthError) {
       console.error('Error fetching latest month:', monthError);
