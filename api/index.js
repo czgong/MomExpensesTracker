@@ -730,6 +730,7 @@ app.post('/api/month-status', async (req, res) => {
 // GET endpoint to get the most recent percentage shares (for inheritance).
 // Optional ?before=YYYY-MM restricts to records strictly before that month,
 // so saving shares for a later month never retroactively changes earlier ones.
+// v2 — force serverless function rebuild on Vercel.
 app.get('/api/latest-shares', async (req, res) => {
   try {
     const { before } = req.query;
