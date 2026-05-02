@@ -25,12 +25,21 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      // Get the most recent month with shares data
-      const { data: latestMonth, error: monthError } = await supabase
+      // Optional ?before=YYYY-MM restricts to records strictly before that month
+      // so saving shares for a later month never retroactively changes earlier ones.
+      const { before } = req.query;
+
+      let monthQuery = supabase
         .from('monthly_shares')
         .select('month_key')
         .order('month_key', { ascending: false })
         .limit(1);
+
+      if (before) {
+        monthQuery = monthQuery.lt('month_key', before);
+      }
+
+      const { data: latestMonth, error: monthError } = await monthQuery;
 
       if (monthError) {
         console.error('Error fetching latest month:', monthError);
