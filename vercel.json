@@ -12,7 +12,8 @@
   ],
   "build": {
     "env": {
-      "REACT_APP_API_URL": "https://mom-expenses-tracker.vercel.app"
+      "REACT_APP_API_URL": "https://mom-expenses-tracker.vercel.app",
+      "CI": "false"
     }
   }
 }
