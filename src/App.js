@@ -227,9 +227,15 @@ const [originalParticipants, setOriginalParticipants] = useState([]);
     
     // Create new participants array from persons with shares
     const newParticipants = personsData.map(person => {
-      // Use monthly share if available, otherwise equal distribution
-      const percentShare = monthlyShares[person.id] || (100 / personsData.length);
-      
+      // Use monthly share if available, otherwise equal distribution.
+      // Check for undefined/null explicitly so a legitimate 0% share is preserved
+      // (0 is falsy, so `|| (100 / length)` would incorrectly overwrite it).
+      const savedShare = monthlyShares[person.id];
+      const percentShare =
+        savedShare === undefined || savedShare === null
+          ? 100 / personsData.length
+          : savedShare;
+
       return {
         id: person.id,
         name: person.name,

@@ -151,12 +151,20 @@ const ExpenseSharing = ({
         // Load month-specific shares
         const monthlyShares = await loadMonthlyShares(month.key, persons);
         
-        // Create participants for this month
-        const monthParticipants = persons.map(person => ({
-          id: person.id,
-          name: person.name,
-          percentShare: monthlyShares[person.id] || (100 / persons.length)
-        }));
+        // Create participants for this month.
+        // Check for undefined/null explicitly so a legitimate 0% share is preserved
+        // (0 is falsy, so `|| (100 / length)` would incorrectly overwrite it).
+        const monthParticipants = persons.map(person => {
+          const savedShare = monthlyShares[person.id];
+          return {
+            id: person.id,
+            name: person.name,
+            percentShare:
+              savedShare === undefined || savedShare === null
+                ? 100 / persons.length
+                : savedShare
+          };
+        });
         
         // Store monthly participants
         setMonthlyParticipants(prev => ({
